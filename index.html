@@ -332,6 +332,27 @@
       position: absolute !important;
       transition: transform 0.2s ease, top 0.2s ease, left 0.2s ease;
     }
+    .stack-count-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 3px;
+      border-radius: 9px;
+      background: #FFFDF8;
+      color: #2E170C;
+      font-size: 0.65rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #8B5A2B;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+      z-index: 25;
+      pointer-events: none;
+      line-height: 1;
+    }
     
     /* Modern Wooden Peg / Token Design */
     .pawn-token {
@@ -1306,6 +1327,14 @@
       }
       .pawn-token.movable {
         border-width: 1.5px !important;
+      }
+      .stack-count-badge {
+        min-width: 14px;
+        height: 14px;
+        font-size: 0.55rem;
+        top: -3px;
+        right: -3px;
+        border-width: 1px;
       }
 
       /* Compact Corner Stations */
@@ -2844,38 +2873,167 @@
       }
 
       applyHouseStacking() {
+        const SLOTS = [
+          { topPct: 6,  leftPct: 6  },  // 0: Top-Left (Blue / West)
+          { topPct: 6,  leftPct: 52 },  // 1: Top-Right (Red / North)
+          { topPct: 52, leftPct: 6  },  // 2: Bottom-Left (Green / South)
+          { topPct: 52, leftPct: 52 }   // 3: Bottom-Right (Yellow / East)
+        ];
+
+        const PREFERRED_SLOT = {
+          blue: 0,
+          red: 1,
+          green: 2,
+          yellow: 3
+        };
+
         for (let r = 0; r < 5; r++) {
           for (let c = 0; c < 5; c++) {
             const cl = document.getElementById(`cell-${r}-${c}-cluster`);
             if (!cl) continue;
+            
+            // Clean up any previously attached stack count badges in this cluster
+            cl.querySelectorAll('.stack-count-badge').forEach(b => b.remove());
+
             const tokens = Array.from(cl.querySelectorAll('.pawn-token'));
-            if (tokens.length > 4) {
-              cl.classList.add('stacked-house');
-              tokens.forEach((t, idx) => {
-                const slot = idx % 4;
-                const layer = Math.floor(idx / 4);
-                t.classList.add('stacked-pawn');
-                // Slots: 0: Top-Left, 1: Top-Right, 2: Bottom-Left, 3: Bottom-Right
-                const topPct = (slot === 0 || slot === 1) ? 6 : 52;
-                const leftPct = (slot === 0 || slot === 2) ? 6 : 52;
-                const offsetX = layer * 3;
-                const offsetY = -layer * 3;
-                t.style.top = `calc(${topPct}% + ${offsetY}px)`;
-                t.style.left = `calc(${leftPct}% - ${offsetX}px)`;
-                t.style.zIndex = `${5 + layer}`;
-                if (layer > 0) {
-                  t.style.boxShadow = `0 4px 8px rgba(0, 0, 0, 0.45)`;
-                }
-              });
-            } else {
+            if (tokens.length === 0) continue;
+
+            // Group tokens by color / player
+            const colorMap = {};
+            tokens.forEach(t => {
+              let color = null;
+              if (t.classList.contains('pawn-green')) color = 'green';
+              else if (t.classList.contains('pawn-red')) color = 'red';
+              else if (t.classList.contains('pawn-yellow')) color = 'yellow';
+              else if (t.classList.contains('pawn-blue')) color = 'blue';
+              if (!color) return;
+              if (!colorMap[color]) colorMap[color] = [];
+              colorMap[color].push(t);
+            });
+
+            const colorsPresent = Object.keys(colorMap);
+            const isGoal = (r === 2 && c === 2);
+            const needsCustomLayout = colorsPresent.length > 1 || tokens.length > 4 || (isGoal && tokens.length > 1);
+
+            if (tokens.length === 1) {
+              // Single pawn alone: center cleanly
+              cl.classList.remove('stacked-house');
+              const t = tokens[0];
+              t.classList.remove('stacked-pawn');
+              t.style.position = '';
+              t.style.top = '';
+              t.style.left = '';
+              t.style.transform = '';
+              t.style.zIndex = '';
+              t.style.boxShadow = '';
+            } else if (!needsCustomLayout) {
+              // Single player with 2-4 pawns in an unshared cell:
+              // Clean flex-wrap display (e.g. 2x2 grid in home square)
               cl.classList.remove('stacked-house');
               tokens.forEach(t => {
                 t.classList.remove('stacked-pawn');
                 t.style.position = '';
                 t.style.top = '';
                 t.style.left = '';
+                t.style.transform = '';
                 t.style.zIndex = '';
                 t.style.boxShadow = '';
+              });
+            } else {
+              // Multiple colors or crowded cell:
+              // Distribute the 4 physical quadrant spots among colors,
+              // stacking ONLY the extra pawns of the same color!
+              cl.classList.add('stacked-house');
+
+              const numColors = colorsPresent.length;
+              const slotAllocation = {};
+              colorsPresent.forEach(col => slotAllocation[col] = 1);
+              let remainingSlots = 4 - numColors;
+
+              // Give remaining slots to colors with the most pawns that need more slots
+              const sortedColors = [...colorsPresent].sort((a, b) => colorMap[b].length - colorMap[a].length);
+              while (remainingSlots > 0) {
+                const canGive = sortedColors.find(col => colorMap[col].length > slotAllocation[col]);
+                if (canGive) {
+                  slotAllocation[canGive]++;
+                  remainingSlots--;
+                } else {
+                  break;
+                }
+              }
+
+              // Assign physical slot indices (0, 1, 2, 3) to each color
+              const availableSlots = [0, 1, 2, 3];
+              const colorAssignedSlots = {};
+              colorsPresent.forEach(col => colorAssignedSlots[col] = []);
+
+              // 1. Give each color its preferred natural slot first if free
+              colorsPresent.forEach(col => {
+                const pref = PREFERRED_SLOT[col];
+                const idx = availableSlots.indexOf(pref);
+                if (idx !== -1) {
+                  colorAssignedSlots[col].push(pref);
+                  availableSlots.splice(idx, 1);
+                }
+              });
+
+              // If any color did not get its preferred slot, give it an available slot
+              colorsPresent.forEach(col => {
+                if (colorAssignedSlots[col].length === 0 && availableSlots.length > 0) {
+                  colorAssignedSlots[col].push(availableSlots.shift());
+                }
+              });
+
+              // 2. Allocate extra slots for colors with slotAllocation > 1
+              sortedColors.forEach(col => {
+                while (colorAssignedSlots[col].length < slotAllocation[col] && availableSlots.length > 0) {
+                  colorAssignedSlots[col].push(availableSlots.shift());
+                }
+              });
+
+              // 3. Place pawns into assigned slots:
+              // Pawns of the same color spread across its assigned slots;
+              // Only extra pawns stack on top of pawns of the same color!
+              colorsPresent.forEach(col => {
+                const pawns = colorMap[col];
+                const slots = colorAssignedSlots[col];
+                if (!slots || slots.length === 0) return;
+
+                // Group pawns into slots for this color
+                const slotBins = slots.map(() => []);
+                pawns.forEach((p, pIdx) => {
+                  // Put 1 pawn in each slot first; any extras stack in the primary slot (index 0)
+                  const targetBin = (pIdx < slots.length) ? pIdx : 0;
+                  slotBins[targetBin].push(p);
+                });
+
+                slots.forEach((slotId, binIdx) => {
+                  const bin = slotBins[binIdx];
+                  const base = SLOTS[slotId];
+                  const binCount = bin.length;
+
+                  bin.forEach((t, layer) => {
+                    t.classList.add('stacked-pawn');
+                    const offsetX = layer * 3;
+                    const offsetY = layer * 3;
+                    t.style.top = `calc(${base.topPct}% - ${offsetY}px)`;
+                    t.style.left = `calc(${base.leftPct}% + ${offsetX}px)`;
+                    t.style.zIndex = `${10 + layer}`;
+                    if (layer > 0) {
+                      t.style.boxShadow = `0 4px 8px rgba(0, 0, 0, 0.45)`;
+                    } else {
+                      t.style.boxShadow = '';
+                    }
+
+                    // Show stack badge only if multiple pawns of this same color are stacked in this slot
+                    if (binCount > 1 && layer === binCount - 1) {
+                      const badge = document.createElement('span');
+                      badge.className = 'stack-count-badge';
+                      badge.textContent = `×${binCount}`;
+                      t.appendChild(badge);
+                    }
+                  });
+                });
               });
             }
           }

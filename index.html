@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Champul (चम्पूल) - 5x5 Traditional Indian Board Game</title>
+  <!-- PeerJS Serverless WebRTC for Zero-Cost Online Multiplayer Rooms -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+  <script>
+    if (typeof Peer === 'undefined') {
+      document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
+    }
+  </script>
   <style>
     :root {
       --bg-sandalwood: #F6F1E7;
@@ -840,7 +847,12 @@
       justify-content: center;
       padding: 16px;
     }
+    .hidden { display: none !important; }
     .modal-backdrop.hidden { display: none !important; }
+    .online-panel.hidden { display: none !important; }
+    .room-created-card.hidden { display: none !important; }
+    .waiting-indicator.hidden { display: none !important; }
+    .online-error-msg.hidden { display: none !important; }
     
     .modal-dialog {
       position: relative;
@@ -989,117 +1001,306 @@
       line-height: 1.4;
     }
 
-    /* Setup & Welcome Modal */
     .setup-dialog {
-      max-width: 490px;
+      max-width: 580px;
+      width: 95%;
+      padding: 24px;
+      gap: 16px;
     }
-    .setup-notice-card {
-      background: #FEF9EE;
-      border: 1.5px solid #EAD8B7;
+    .setup-form-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .setup-step-group {
+      background: #FAF6EF;
+      border: 1.5px solid #E4D7C5;
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .step-header-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .step-badge {
+      background: #C8A261;
+      color: #2D1A0E;
+      font-size: 0.68rem;
+      font-weight: 900;
+      padding: 2px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .step-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #3D2B1F;
+    }
+
+    /* Step 1: Game Destination (Dual Hero Cards) */
+    .destination-dual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .dest-card {
+      background: #FFFFFF;
+      border: 2.2px solid #D8C6AC;
       border-radius: 12px;
-      padding: 10px 14px;
+      padding: 13px 14px;
       display: flex;
       align-items: center;
       gap: 12px;
-      color: #5A3E1B;
-      font-size: 0.82rem;
-      line-height: 1.45;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.22s ease;
+      text-align: left;
     }
-    .setup-notice-icon {
-      font-size: 1.5rem;
+    #btn-choose-online {
+      padding-right: 68px;
+    }
+    .dest-card:hover {
+      border-color: #2E6B4F;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(46, 107, 79, 0.12);
+    }
+    .dest-card.active {
+      border-color: #2E6B4F;
+      background: #F0F8F4;
+      box-shadow: 0 0 0 2px rgba(46, 107, 79, 0.25);
+    }
+    .dest-icon {
+      font-size: 1.65rem;
       flex-shrink: 0;
     }
-    .setup-section-title {
-      font-size: 0.86rem;
-      font-weight: 800;
-      color: #3A2618;
-      margin-bottom: 8px;
+    .dest-text {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      flex-direction: column;
+      gap: 2px;
     }
-    .setup-options-grid {
+    .dest-title {
+      font-size: 0.89rem;
+      font-weight: 800;
+      color: #2D1A0E;
+    }
+    .dest-sub {
+      font-size: 0.72rem;
+      color: #6E5A4A;
+      line-height: 1.25;
+    }
+    .dest-badge {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      background: linear-gradient(135deg, #1E7E52, #2E6B4F);
+      color: #FFFFFF;
+      font-size: 0.62rem;
+      font-weight: 900;
+      padding: 3px 7px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      box-shadow: 0 1px 4px rgba(30, 126, 82, 0.25);
+    }
+
+    /* Step 2: Player Count Pills with Pawn Chips Preview */
+    .players-pills-row {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
     }
-    .setup-option-card {
+    .player-pill {
       background: #FFFFFF;
-      border: 2px solid #DFD0BF;
-      border-radius: 10px;
-      padding: 12px 6px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      border: 2px solid #D8C6AC;
+      border-radius: 12px;
+      padding: 10px 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      user-select: none;
-    }
-    .setup-option-card:hover {
-      border-color: var(--wood-dark);
-      background: #FFFDF9;
-      transform: translateY(-1px);
-    }
-    .setup-option-card.selected {
-      border-color: #5C241C;
-      background: #FDF4F2;
-      box-shadow: 0 0 0 1.5px #5C241C;
-    }
-    .setup-option-card .opt-count {
-      font-size: 0.98rem;
-      font-weight: 900;
-      color: #2D1E18;
-    }
-    .setup-option-card .opt-sub {
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: #8C6F56;
-      line-height: 1.2;
-    }
-    .setup-mode-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .setup-mode-card {
-      background: #FFFFFF;
-      border: 2px solid #DFD0BF;
-      border-radius: 10px;
-      padding: 10px 12px;
+      gap: 6px;
       cursor: pointer;
       transition: all 0.2s ease;
+      user-select: none;
+    }
+    .player-pill:hover {
+      border-color: #5C241C;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(92, 36, 28, 0.12);
+    }
+    .player-pill.selected {
+      border-color: #5C241C;
+      background: #FDF3F1;
+      box-shadow: 0 0 0 2px rgba(92, 36, 28, 0.2);
+    }
+    .pill-number {
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: #2D1A0E;
+      line-height: 1;
+    }
+    .pill-title {
+      font-size: 0.76rem;
+      font-weight: 800;
+      color: #66503F;
+    }
+    .pill-pawn-dots {
+      display: flex;
+      gap: 4px;
+      margin-top: 2px;
+    }
+    .pawn-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+    .pawn-dot.p-green { background: #2E6B4F; }
+    .pawn-dot.p-red { background: #A83E2D; }
+    .pawn-dot.p-yellow { background: #C98B2C; }
+    .pawn-dot.p-blue { background: #2B5B72; }
+
+    /* Step 3: Opponent Mode Cards with Radio Indicator */
+    .opponent-modes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .opp-mode-card {
+      background: #FFFFFF;
+      border: 2px solid #D8C6AC;
+      border-radius: 12px;
+      padding: 12px;
       display: flex;
       align-items: center;
       gap: 10px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s ease;
       user-select: none;
     }
-    .setup-mode-card:hover {
-      border-color: #2E6B4F;
-      background: #FFFDF9;
-      transform: translateY(-1px);
+    .opp-mode-card:hover {
+      border-color: #C98B2C;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(201, 139, 44, 0.12);
     }
-    .setup-mode-card.selected {
-      border-color: #2E6B4F;
-      background: #F0F7F3;
-      box-shadow: 0 0 0 1.5px #2E6B4F;
+    .opp-mode-card.selected {
+      border-color: #C98B2C;
+      background: #FDF9F0;
+      box-shadow: 0 0 0 2px rgba(201, 139, 44, 0.25);
     }
-    .setup-mode-card .mode-icon {
-      font-size: 1.3rem;
+    .opp-icon {
+      font-size: 1.5rem;
       flex-shrink: 0;
     }
-    .setup-mode-card .mode-title {
-      font-size: 0.83rem;
-      font-weight: 800;
-      color: #2D1E18;
-      line-height: 1.2;
+    .opp-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
-    .setup-mode-card .mode-desc {
-      font-size: 0.68rem;
-      color: #7C6753;
-      font-weight: 600;
-      margin-top: 2px;
+    .opp-title {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #2D1A0E;
+    }
+    .opp-sub {
+      font-size: 0.7rem;
+      color: #7A6553;
+      line-height: 1.25;
+    }
+    .opp-radio {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #B8A692;
+      background: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .opp-mode-card.selected .opp-radio {
+      border-color: #C98B2C;
+    }
+    .opp-mode-card.selected .opp-radio::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #C98B2C;
+    }
+
+    /* Start Button */
+    .btn-start-match {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 1.05rem;
+      font-weight: 900;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(46, 107, 79, 0.35);
+    }
+
+    /* Online Modal Back Navigation */
+    .btn-modal-back {
+      background: #EFE8DA;
+      border: 1px solid #D6C7B2;
+      color: #554133;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-modal-back:hover {
+      background: #E4DAC9;
+      color: #2D1A0E;
+    }
+    .online-modal-footer {
+      display: flex;
+      justify-content: center;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #EAE0D0;
+    }
+    .btn-subtle-back {
+      background: transparent;
+      border: none;
+      color: #7D6551;
+      font-size: 0.8rem;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 4px 8px;
+    }
+    .btn-subtle-back:hover {
+      color: #2D1A0E;
+    }
+    .btn-cancel-room {
+      width: 100%;
+      padding: 9px 12px;
+      background: #FFF5F5;
+      color: #991B1B;
+      border: 1.5px solid #FCA5A5;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.2s ease;
+    }
+    .btn-cancel-room:hover {
+      background: #FEE2E2;
+      border-color: #F87171;
     }
 
     .modal-header-row {
@@ -1470,6 +1671,215 @@
         min-height: 34px;
       }
     }
+
+    @media (max-width: 480px) {
+      .destination-dual-grid, .opponent-modes-grid {
+        grid-template-columns: 1fr;
+      }
+      .setup-dialog {
+        padding: 16px;
+        gap: 14px;
+      }
+      .setup-form-container {
+        gap: 14px;
+      }
+      .setup-step-group {
+        padding: 12px;
+      }
+    }
+
+    /* =========================================
+       Online Multiplayer Room Styles
+       ========================================= */
+    .online-dialog {
+      max-width: 440px;
+      width: 92%;
+      padding: 20px;
+    }
+    .online-tabs {
+      display: flex;
+      gap: 6px;
+      margin: 14px 0 16px 0;
+      background: #EFE8DA;
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .online-tab {
+      flex: 1;
+      padding: 9px 12px;
+      font-size: 0.86rem;
+      font-weight: 800;
+      border: none;
+      background: transparent;
+      color: #6E5B4B;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .online-tab.active {
+      background: #FFFFFF;
+      color: #2D1A0E;
+      box-shadow: 0 2px 5px rgba(45, 30, 24, 0.12);
+    }
+    .online-desc {
+      font-size: 0.85rem;
+      color: #5A4739;
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+    .btn-action-room {
+      width: 100%;
+      padding: 12px 18px;
+      font-size: 0.95rem;
+      font-weight: 800;
+      border-radius: 10px;
+    }
+    .room-created-card {
+      background: #FAF6EF;
+      border: 1.5px solid #D8C6AC;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 10px;
+    }
+    .room-code-label {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: #8C6A48;
+      letter-spacing: 1px;
+    }
+    .room-code-display {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 2rem;
+      font-weight: 900;
+      color: #2E6B4F;
+      letter-spacing: 3px;
+      margin: 6px 0;
+    }
+    .room-code-sub {
+      font-size: 0.78rem;
+      color: #7A6553;
+      margin-bottom: 12px;
+    }
+    .invite-link-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .invite-link-row input {
+      flex: 1;
+      padding: 8px 10px;
+      font-size: 0.8rem;
+      border: 1.5px solid #CFBEA7;
+      border-radius: 8px;
+      background: #FFFFFF;
+      color: #4A3A2C;
+      font-family: inherit;
+      outline: none;
+    }
+    .btn-copy {
+      padding: 8px 14px;
+      background: #2E6B4F;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s ease;
+    }
+    .btn-copy:hover {
+      background: #245740;
+    }
+    .btn-copy.copied {
+      background: #C8A261;
+      color: #2D1A0E;
+    }
+    .join-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .join-input-group input {
+      padding: 12px 14px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+      border: 2px solid #CFBEA7;
+      border-radius: 10px;
+      background: #FFFFFF;
+      color: #2D1A0E;
+      outline: none;
+    }
+    .join-input-group input:focus {
+      border-color: #2E6B4F;
+      box-shadow: 0 0 0 3px rgba(46, 107, 79, 0.15);
+    }
+    .waiting-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px;
+      background: #F1ECE1;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #554234;
+      margin-top: 8px;
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #2E6B4F;
+      animation: pulseAnim 1.4s infinite ease-in-out;
+    }
+    @keyframes pulseAnim {
+      0%, 100% { transform: scale(0.8); opacity: 0.5; }
+      50% { transform: scale(1.3); opacity: 1; }
+    }
+    .online-error-msg {
+      background: #FDF2F2;
+      color: #991B1B;
+      border: 1.5px solid #F87171;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-top: 12px;
+      text-align: center;
+    }
+    .online-room-badge {
+      background: #E8F5EE;
+      color: #1E5039;
+      border: 1.2px solid #84C9A7;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+    }
+    .online-room-badge .btn-leave-room {
+      background: none;
+      border: none;
+      color: #A83E2D;
+      font-weight: 900;
+      font-size: 0.72rem;
+      cursor: pointer;
+      margin-left: 4px;
+      padding: 0 2px;
+    }
+    .online-room-badge .btn-leave-room:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -1539,12 +1949,13 @@
     <header class="game-header">
       <div class="brand-title">
         <h1>चम्पूल (Champul)</h1>
-        <span class="brand-tag">Pass & Play</span>
+        <span class="brand-tag" id="main-brand-tag">Pass & Play</span>
+        <span id="online-room-badge" class="online-room-badge hidden">🟢 Room: <span id="online-badge-code"></span> <button type="button" class="btn-leave-room" id="btn-leave-online" title="Leave Online Room">✕ Leave</button></span>
         <span class="devanagari-sub">• 5x5 Traditional Board</span>
       </div>
       <div class="header-controls">
         <button id="btn-new-game" class="btn-pill">➕ New Game</button>
-        <button id="btn-multiplayer" class="btn-pill disabled-feature" title="Online multiplayer coming soon" disabled>🌐 Online (Coming Soon)</button>
+        <button id="btn-multiplayer" class="btn-pill" title="Create or join an online room">🌐 Online Room</button>
         <div class="header-divider"></div>
         <button id="btn-toggle-sound" class="btn-pill" title="Toggle Sound">🔊 Sound</button>
         <button id="btn-help" class="btn-pill">📜 Rules</button>
@@ -1811,74 +2222,193 @@
       </div>
     </div>
 
-    <!-- Modal: New Game / Match Configuration & Welcome Popover -->
+    <!-- Modal: Game Setup / Welcome Hub (Unified Pass & Play and Online Room) -->
     <div id="modal-newgame" class="modal-backdrop hidden">
       <div class="modal-dialog setup-dialog">
         <div class="modal-header-row">
-          <h2>🎲 Welcome to Champul (चम्पूल)</h2>
+          <h2 id="modal-setup-title">🎲 Game Setup</h2>
           <button class="btn-close-modal" title="Close">✕</button>
         </div>
 
-        <div class="setup-notice-card">
-          <div class="setup-notice-icon">📱</div>
-          <div class="setup-notice-text">
-            <b>Pass & Play Mode</b><br>
-            Play together on this device by passing turns, or play solo against a smart AI Bot!
+        <div class="setup-form-container">
+          <!-- ================= LEVEL 1: GAME TYPE (PASS & PLAY VS ONLINE ROOM) ================= -->
+          <div class="setup-step-group">
+            <div class="step-header-row">
+              <span class="step-title">Choose Game Type</span>
+            </div>
+
+            <div class="destination-dual-grid">
+              <button type="button" class="dest-card active" id="btn-choose-local">
+                <span class="dest-icon">📱</span>
+                <div class="dest-text">
+                  <span class="dest-title">Pass & Play (Local)</span>
+                  <span class="dest-sub">Friends on 1 screen or vs AI Bot</span>
+                </div>
+              </button>
+
+              <button type="button" class="dest-card" id="btn-choose-online">
+                <span class="dest-icon">🌐</span>
+                <div class="dest-text">
+                  <span class="dest-title">Online Game Room</span>
+                  <span class="dest-sub">Live 2-player across devices</span>
+                </div>
+                <span class="dest-badge">WebRTC</span>
+              </button>
+            </div>
           </div>
+
+          <!-- ================= VIEW A: LOCAL PASS & PLAY CONFIGURATION ================= -->
+          <div id="view-local-setup" class="setup-view-section">
+            <form id="form-newgame" style="display: flex; flex-direction: column; gap: 16px;">
+              <!-- Combined Match Setup Group (Players & Mode in 1 Box) -->
+              <div class="setup-step-group" style="gap: 14px;">
+                <!-- Sub-group 1: Number of Players -->
+                <div>
+                  <div class="step-header-row" style="margin-bottom: 8px;">
+                    <span class="step-title">Number of Players</span>
+                  </div>
+
+                  <div class="players-pills-row" id="grid-player-count">
+                    <div class="player-pill selected" data-value="2">
+                      <span class="pill-number">2</span>
+                      <span class="pill-title">Players</span>
+                      <div class="pill-pawn-dots">
+                        <span class="pawn-dot p-green" title="South / Dakshin"></span>
+                        <span class="pawn-dot p-red" title="North / Uttar"></span>
+                      </div>
+                    </div>
+
+                    <div class="player-pill" data-value="3">
+                      <span class="pill-number">3</span>
+                      <span class="pill-title">Players</span>
+                      <div class="pill-pawn-dots">
+                        <span class="pawn-dot p-green" title="South / Dakshin"></span>
+                        <span class="pawn-dot p-yellow" title="East / Purva"></span>
+                        <span class="pawn-dot p-red" title="North / Uttar"></span>
+                      </div>
+                    </div>
+
+                    <div class="player-pill" data-value="4">
+                      <span class="pill-number">4</span>
+                      <span class="pill-title">Players</span>
+                      <div class="pill-pawn-dots">
+                        <span class="pawn-dot p-green" title="South / Dakshin"></span>
+                        <span class="pawn-dot p-yellow" title="East / Purva"></span>
+                        <span class="pawn-dot p-red" title="North / Uttar"></span>
+                        <span class="pawn-dot p-blue" title="West / Pashchim"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <select id="select-players-count" style="display: none;">
+                    <option value="2" selected>2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
+                </div>
+
+                <!-- Subtle Section Divider -->
+                <div style="height: 1px; background: #E4D7C5; margin: 2px 0;"></div>
+
+                <!-- Sub-group 2: Opponent Mode -->
+                <div>
+                  <div class="step-header-row" style="margin-bottom: 8px;">
+                    <span class="step-title">Choose Gameplay Mode</span>
+                  </div>
+
+                  <div class="opponent-modes-grid" id="grid-game-mode">
+                    <div class="opp-mode-card selected" data-value="local">
+                      <span class="opp-icon">👥</span>
+                      <div class="opp-info">
+                        <span class="opp-title">Pass & Play</span>
+                        <span class="opp-sub">Friends & Family take turns</span>
+                      </div>
+                      <div class="opp-radio"></div>
+                    </div>
+
+                    <div class="opp-mode-card" data-value="ai">
+                      <span class="opp-icon">🤖</span>
+                      <div class="opp-info">
+                        <span class="opp-title">Play vs AI Bot</span>
+                        <span class="opp-sub">Solo play against computer</span>
+                      </div>
+                      <div class="opp-radio"></div>
+                    </div>
+                  </div>
+
+                  <select id="select-game-mode" style="display: none;">
+                    <option value="local" selected>Pass & Play</option>
+                    <option value="ai">AI Bot</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Action Button -->
+              <div>
+                <button type="submit" class="btn-primary btn-start-match">▶️ Start Local Game</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- ================= VIEW B: ONLINE GAME ROOM CONFIGURATION ================= -->
+          <div id="view-online-setup" class="setup-view-section hidden">
+            <div class="setup-step-group">
+              <div class="step-header-row">
+                <span class="step-title">Online Room Options</span>
+              </div>
+
+              <div class="online-tabs" style="margin: 4px 0 12px 0;">
+                <button type="button" class="online-tab active" id="tab-create-room">Create Room</button>
+                <button type="button" class="online-tab" id="tab-join-room">Join Room</button>
+              </div>
+
+              <!-- Tab 1: Create Room Content -->
+              <div id="panel-create-room" class="online-panel">
+                <p class="online-desc" style="margin-bottom: 12px;">Create a private game room and share the invite code or direct link with a friend to play live from anywhere!</p>
+                
+                <div class="room-action-box" id="box-create-idle">
+                  <button type="button" class="btn-primary btn-action-room" id="btn-do-create-room">🚀 Create New Room</button>
+                </div>
+
+                <div class="room-created-card hidden" id="box-room-created">
+                  <div class="room-code-label">YOUR ROOM CODE</div>
+                  <div class="room-code-display" id="display-room-code">------</div>
+                  <p class="room-code-sub">Send this code to your friend, or copy the direct link:</p>
+                  
+                  <div class="invite-link-row">
+                    <input type="text" id="input-invite-link" readonly value="" />
+                    <button type="button" class="btn-copy" id="btn-copy-link">📋 Copy Link</button>
+                  </div>
+                  
+                  <div class="waiting-indicator" id="waiting-spinner">
+                    <span class="pulse-dot"></span>
+                    <span id="waiting-text">Waiting for opponent to connect...</span>
+                  </div>
+
+                  <button type="button" class="btn-cancel-room" id="btn-cancel-created-room">✕ Cancel Room</button>
+                </div>
+              </div>
+
+              <!-- Tab 2: Join Room Content -->
+              <div id="panel-join-room" class="online-panel hidden">
+                <p class="online-desc" style="margin-bottom: 12px;">Enter the Room Code shared by your friend to join their match:</p>
+                
+                <div class="join-input-group">
+                  <input type="text" id="input-join-code" placeholder="e.g. CP-8X2M" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="characters" />
+                  <button type="button" class="btn-primary btn-action-room" id="btn-do-join-room">⚔️ Join Room</button>
+                </div>
+                
+                <div class="waiting-indicator hidden" id="join-spinner">
+                  <span class="pulse-dot"></span>
+                  <span id="join-status-text">Connecting to host...</span>
+                </div>
+              </div>
+
+              <div class="online-error-msg hidden" id="online-error-box"></div>
+            </div>
+          </div>
+
         </div>
-
-        <form id="form-newgame" style="display: flex; flex-direction: column; gap: 14px;">
-          <!-- Section 1: Number of Players -->
-          <div>
-            <div class="setup-section-title">👥 How many players want to play?</div>
-            <div class="setup-options-grid" id="grid-player-count">
-              <div class="setup-option-card selected" data-value="2">
-                <span class="opt-count">2 Players</span>
-              </div>
-              <div class="setup-option-card" data-value="3">
-                <span class="opt-count">3 Players</span>
-              </div>
-              <div class="setup-option-card" data-value="4">
-                <span class="opt-count">4 Players</span>
-              </div>
-            </div>
-            <select id="select-players-count" style="display: none;">
-              <option value="2" selected>2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-          </div>
-
-          <!-- Section 2: Game Mode (Pass & Play vs AI Bot) -->
-          <div>
-            <div class="setup-section-title">🎮 Choose Gameplay Mode</div>
-            <div class="setup-mode-grid" id="grid-game-mode">
-              <div class="setup-mode-card selected" data-value="local">
-                <div class="mode-icon">👥</div>
-                <div>
-                  <div class="mode-title">Pass & Play</div>
-                  <div class="mode-desc">Friends / Family on 1 screen</div>
-                </div>
-              </div>
-              <div class="setup-mode-card" data-value="ai">
-                <div class="mode-icon">🤖</div>
-                <div>
-                  <div class="mode-title">Play vs AI Bot</div>
-                  <div class="mode-desc">Play against computer</div>
-                </div>
-              </div>
-            </div>
-            <select id="select-game-mode" style="display: none;">
-              <option value="local" selected>Pass & Play</option>
-              <option value="ai">AI Bot</option>
-            </select>
-          </div>
-
-          <!-- Section 3: Action Buttons -->
-          <div style="margin-top: 6px;">
-            <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">▶️ Start Game</button>
-          </div>
-        </form>
       </div>
     </div>
 
@@ -2322,6 +2852,161 @@
       }
     }
 
+    /**
+     * PeerJS P2P Live Multiplayer Network Engine
+     * Zero-server, serverless WebRTC connection for instant room sharing
+     */
+    class NetworkManager {
+      constructor(callbacks = {}) {
+        this.peer = null;
+        this.conn = null;
+        this.isHost = false;
+        this.roomCode = null;
+        this.callbacks = {
+          onConnected: () => {},
+          onPlayerJoined: () => {},
+          onDataReceived: () => {},
+          onDisconnected: () => {},
+          onError: () => {},
+          ...callbacks
+        };
+      }
+
+      initHost() {
+        return this.createRoom();
+      }
+
+      createRoom() {
+        return new Promise((resolve, reject) => {
+          if (typeof Peer === 'undefined') {
+            const err = new Error('PeerJS library not loaded. Please check your internet connection.');
+            this.callbacks.onError(err);
+            return reject(err);
+          }
+
+          this.disconnect();
+          this.isHost = true;
+          const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+          this.roomCode = `CP-${randomSuffix}`;
+
+          const peerId = `champul-${this.roomCode.toLowerCase()}`;
+          this.peer = new Peer(peerId, {
+            debug: 1,
+            config: {
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+              ]
+            }
+          });
+
+          this.peer.on('open', () => {
+            this.callbacks.onConnected({ isHost: true, roomCode: this.roomCode });
+            resolve(this.roomCode);
+          });
+
+          this.peer.on('connection', (conn) => {
+            this.setupConnection(conn);
+          });
+
+          this.peer.on('error', (err) => {
+            console.error('Peer error in createRoom:', err);
+            this.callbacks.onError(err);
+            reject(err);
+          });
+        });
+      }
+
+      joinRoom(targetRoomCode) {
+        return new Promise((resolve, reject) => {
+          if (typeof Peer === 'undefined') {
+            const err = new Error('PeerJS library not loaded. Please check your internet connection.');
+            this.callbacks.onError(err);
+            return reject(err);
+          }
+
+          this.disconnect();
+          this.isHost = false;
+          const cleanCode = targetRoomCode.trim().toUpperCase();
+          this.roomCode = cleanCode;
+
+          this.peer = new Peer({
+            debug: 1,
+            config: {
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+              ]
+            }
+          });
+
+          this.peer.on('open', () => {
+            const hostPeerId = `champul-${this.roomCode.toLowerCase()}`;
+            const conn = this.peer.connect(hostPeerId, { reliable: true });
+
+            conn.on('open', () => {
+              this.setupConnection(conn);
+              this.callbacks.onConnected({ isHost: false, roomCode: this.roomCode });
+              resolve(this.roomCode);
+            });
+
+            conn.on('error', (err) => {
+              this.callbacks.onError(err);
+              reject(err);
+            });
+          });
+
+          this.peer.on('error', (err) => {
+            console.error('Peer error in joinRoom:', err);
+            this.callbacks.onError(err);
+            reject(err);
+          });
+        });
+      }
+
+      setupConnection(conn) {
+        this.conn = conn;
+
+        conn.on('data', (data) => {
+          this.callbacks.onDataReceived(data, conn);
+        });
+
+        conn.on('open', () => {
+          this.callbacks.onPlayerJoined(conn);
+        });
+
+        conn.on('close', () => {
+          this.callbacks.onDisconnected(conn);
+          this.conn = null;
+        });
+
+        conn.on('error', (err) => {
+          this.callbacks.onError(err);
+        });
+      }
+
+      send(data) {
+        if (this.conn && this.conn.open) {
+          this.conn.send(data);
+        }
+      }
+
+      disconnect() {
+        if (this.conn) {
+          try { this.conn.close(); } catch(e) {}
+          this.conn = null;
+        }
+        if (this.peer) {
+          try { this.peer.destroy(); } catch(e) {}
+          this.peer = null;
+        }
+        this.isHost = false;
+        this.roomCode = null;
+      }
+    }
+
     class AshtaChammaUI {
       constructor() {
         this.audio = new AudioEngine();
@@ -2331,14 +3016,48 @@
         this.selectedPawnIndex = null;
         this.isAnimating = false;
         
+        // Online multiplayer state
+        this.isOnline = false;
+        this.onlineRole = null;
+        this.onlinePlayerId = null;
+        this.roomCode = null;
+        this.hasUrlRoomParam = false;
+        this.network = new NetworkManager({
+          onConnected: (info) => {
+            console.log('Network connected:', info);
+          },
+          onPlayerJoined: (conn) => {
+            if (this.onlineRole === 'host') {
+              this.network.send({ type: 'START_GAME' });
+              this.startOnlineGame('host');
+            }
+          },
+          onDataReceived: (data) => {
+            this.handleOnlineDataReceived(data);
+          },
+          onDisconnected: () => {
+            this.handleOpponentDisconnected();
+          },
+          onError: (err) => {
+            console.error('Peer error:', err);
+            this.showOnlineError('Network error: ' + (err.message || err.type || 'Connection failed'));
+          }
+        });
+        
         this.cacheDom();
         this.bindEvents();
         this.initBoard();
         this.initStationShells();
         this.render();
-        // Show Welcome & Match Setup popover on initial landing (without close icon)
-        this.dom.modalNewGame.classList.add('first-landing');
-        this.dom.modalNewGame.classList.remove('hidden');
+        
+        // Check URL for ?room=CODE direct invite
+        this.checkUrlRoomParam();
+
+        // Show Welcome & Match Setup popover on initial landing (only if not joining via URL)
+        if (!this.hasUrlRoomParam) {
+          this.dom.modalNewGame.classList.add('first-landing');
+          this.dom.modalNewGame.classList.remove('hidden');
+        }
       }
 
       cacheDom() {
@@ -2378,7 +3097,34 @@
             red: document.getElementById('kavadi-cluster-red'),
             yellow: document.getElementById('kavadi-cluster-yellow'),
             blue: document.getElementById('kavadi-cluster-blue')
-          }
+          },
+          mainBrandTag: document.getElementById('main-brand-tag'),
+          btnMultiplayer: document.getElementById('btn-multiplayer'),
+          viewLocalSetup: document.getElementById('view-local-setup'),
+          viewOnlineSetup: document.getElementById('view-online-setup'),
+          btnChooseLocal: document.getElementById('btn-choose-local'),
+          btnChooseOnline: document.getElementById('btn-choose-online'),
+          btnCancelCreatedRoom: document.getElementById('btn-cancel-created-room'),
+          onlineRoomBadge: document.getElementById('online-room-badge'),
+          onlineBadgeCode: document.getElementById('online-badge-code'),
+          btnLeaveOnline: document.getElementById('btn-leave-online'),
+          tabCreateRoom: document.getElementById('tab-create-room'),
+          tabJoinRoom: document.getElementById('tab-join-room'),
+          panelCreateRoom: document.getElementById('panel-create-room'),
+          panelJoinRoom: document.getElementById('panel-join-room'),
+          btnDoCreateRoom: document.getElementById('btn-do-create-room'),
+          boxCreateIdle: document.getElementById('box-create-idle'),
+          boxRoomCreated: document.getElementById('box-room-created'),
+          displayRoomCode: document.getElementById('display-room-code'),
+          inputInviteLink: document.getElementById('input-invite-link'),
+          btnCopyLink: document.getElementById('btn-copy-link'),
+          waitingSpinner: document.getElementById('waiting-spinner'),
+          waitingText: document.getElementById('waiting-text'),
+          inputJoinCode: document.getElementById('input-join-code'),
+          btnDoJoinRoom: document.getElementById('btn-do-join-room'),
+          joinSpinner: document.getElementById('join-spinner'),
+          joinStatusText: document.getElementById('join-status-text'),
+          onlineErrorBox: document.getElementById('online-error-box')
         };
       }
 
@@ -2665,10 +3411,7 @@
 
         // Modal openers
         this.dom.btnHelp.addEventListener('click', () => this.dom.modalHelp.classList.remove('hidden'));
-        this.dom.btnNewGame.addEventListener('click', () => {
-          this.dom.modalNewGame.classList.remove('first-landing');
-          this.dom.modalNewGame.classList.remove('hidden');
-        });
+        this.dom.btnNewGame.addEventListener('click', () => this.openLocalModal());
         this.dom.btnShortcuts.addEventListener('click', () => this.dom.modalShortcuts.classList.remove('hidden'));
 
         // Modal Closers
@@ -2686,46 +3429,318 @@
           });
         });
 
-        // Interactive Setup Cards: Player Count
-        document.querySelectorAll('#grid-player-count .setup-option-card').forEach(card => {
+        // Interactive Setup Level 2: Player Count Pills
+        document.querySelectorAll('#grid-player-count .player-pill, #grid-player-count .setup-option-card').forEach(card => {
           card.addEventListener('click', () => {
-            document.querySelectorAll('#grid-player-count .setup-option-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('#grid-player-count .player-pill, #grid-player-count .setup-option-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             document.getElementById('select-players-count').value = card.getAttribute('data-value');
           });
         });
 
-        // Interactive Setup Cards: Game Mode (Pass & Play vs AI Bot)
-        document.querySelectorAll('#grid-game-mode .setup-mode-card').forEach(card => {
+        // Interactive Setup Level 3: Opponent Mode Cards
+        document.querySelectorAll('#grid-game-mode .opp-mode-card, #grid-game-mode .setup-mode-card').forEach(card => {
           card.addEventListener('click', () => {
-            document.querySelectorAll('#grid-game-mode .setup-mode-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('#grid-game-mode .opp-mode-card, #grid-game-mode .setup-mode-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             document.getElementById('select-game-mode').value = card.getAttribute('data-value');
           });
         });
 
+        // Setup Level 1: Pass & Play vs Online Room Toggle
+        if (this.dom.btnChooseLocal) {
+          this.dom.btnChooseLocal.addEventListener('click', () => this.setGameTypeChoice('local'));
+        }
+        if (this.dom.btnChooseOnline) {
+          this.dom.btnChooseOnline.addEventListener('click', () => this.setGameTypeChoice('online'));
+        }
+
+        if (this.dom.btnCancelCreatedRoom) {
+          this.dom.btnCancelCreatedRoom.addEventListener('click', () => {
+            this.leaveOnlineRoom(false);
+          });
+        }
+
+        // Online Multiplayer Modal & Actions
+        if (this.dom.btnMultiplayer) {
+          this.dom.btnMultiplayer.addEventListener('click', () => this.openOnlineModal('create'));
+        }
+        if (this.dom.tabCreateRoom) {
+          this.dom.tabCreateRoom.addEventListener('click', () => this.switchOnlineTab('create'));
+        }
+        if (this.dom.tabJoinRoom) {
+          this.dom.tabJoinRoom.addEventListener('click', () => this.switchOnlineTab('join'));
+        }
+        if (this.dom.btnDoCreateRoom) {
+          this.dom.btnDoCreateRoom.addEventListener('click', () => this.handleCreateRoom());
+        }
+        if (this.dom.btnCopyLink) {
+          this.dom.btnCopyLink.addEventListener('click', () => this.handleCopyLink());
+        }
+        if (this.dom.btnDoJoinRoom) {
+          this.dom.btnDoJoinRoom.addEventListener('click', () => this.handleJoinRoom());
+        }
+        if (this.dom.btnLeaveOnline) {
+          this.dom.btnLeaveOnline.addEventListener('click', () => this.leaveOnlineRoom(true));
+        }
+        if (this.dom.inputJoinCode) {
+          this.dom.inputJoinCode.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.handleJoinRoom();
+          });
+        }
+
         // New game form submission
         document.getElementById('form-newgame').addEventListener('submit', (e) => {
           e.preventDefault();
-          this.audio.init();
+          if (this.isOnline) {
+            this.leaveOnlineRoom(false);
+          }
           const count = parseInt(document.getElementById('select-players-count').value);
           const mode = document.getElementById('select-game-mode').value;
           const types = {};
           const order = count === 2 ? ['green', 'red'] : (count === 3 ? ['green', 'yellow', 'red'] : ['green', 'yellow', 'red', 'blue']);
           order.forEach((pid, idx) => { types[pid] = mode === 'local' ? 'human' : (idx === 0 ? 'human' : 'bot'); });
           
-          this.game = new AshtaChammaGame(count, types);
-          this.ai = new AIEngine(this.game);
-          this.selectedPawnIndex = null;
-          this.isAnimating = false;
-          
-          this.initBoard();
-          this.initStationShells();
-          this.dom.modalNewGame.classList.remove('first-landing');
-          this.closeAllModals();
-          this.render();
-          this.checkAITurn();
+          this.startNewGame(count, types);
         });
+      }
+
+      startNewGame(count, types) {
+        this.audio.init();
+        this.game = new AshtaChammaGame(count, types);
+        this.ai = new AIEngine(this.game);
+        this.selectedPawnIndex = null;
+        this.isAnimating = false;
+        
+        this.initBoard();
+        this.initStationShells();
+        this.dom.modalNewGame.classList.remove('first-landing');
+        this.closeAllModals();
+        this.render();
+        this.checkAITurn();
+      }
+
+      checkUrlRoomParam() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const room = urlParams.get('room');
+        if (room) {
+          this.hasUrlRoomParam = true;
+          const code = room.trim().toUpperCase();
+          this.openOnlineModal('join');
+          if (this.dom.inputJoinCode) {
+            this.dom.inputJoinCode.value = code;
+          }
+        }
+      }
+
+      setGameTypeChoice(type) {
+        if (type === 'online') {
+          if (this.dom.btnChooseOnline) this.dom.btnChooseOnline.classList.add('active');
+          if (this.dom.btnChooseLocal) this.dom.btnChooseLocal.classList.remove('active');
+          if (this.dom.viewLocalSetup) this.dom.viewLocalSetup.classList.add('hidden');
+          if (this.dom.viewOnlineSetup) this.dom.viewOnlineSetup.classList.remove('hidden');
+        } else {
+          if (this.dom.btnChooseLocal) this.dom.btnChooseLocal.classList.add('active');
+          if (this.dom.btnChooseOnline) this.dom.btnChooseOnline.classList.remove('active');
+          if (this.dom.viewLocalSetup) this.dom.viewLocalSetup.classList.remove('hidden');
+          if (this.dom.viewOnlineSetup) this.dom.viewOnlineSetup.classList.add('hidden');
+        }
+      }
+
+      openLocalModal() {
+        this.closeAllModals();
+        this.setGameTypeChoice('local');
+        if (this.dom.modalNewGame) {
+          this.dom.modalNewGame.classList.remove('first-landing');
+          this.dom.modalNewGame.classList.remove('hidden');
+        }
+      }
+
+      openOnlineModal(tab = 'create') {
+        this.closeAllModals();
+        this.showOnlineError('');
+        this.setGameTypeChoice('online');
+        this.switchOnlineTab(tab);
+        if (this.dom.modalNewGame) {
+          this.dom.modalNewGame.classList.remove('first-landing');
+          this.dom.modalNewGame.classList.remove('hidden');
+        }
+      }
+
+      switchOnlineTab(tab) {
+        if (!this.dom.tabCreateRoom || !this.dom.tabJoinRoom) return;
+        this.showOnlineError('');
+        if (tab === 'create') {
+          this.dom.tabCreateRoom.classList.add('active');
+          this.dom.tabJoinRoom.classList.remove('active');
+          this.dom.panelCreateRoom.classList.remove('hidden');
+          this.dom.panelJoinRoom.classList.add('hidden');
+        } else {
+          this.dom.tabCreateRoom.classList.remove('active');
+          this.dom.tabJoinRoom.classList.add('active');
+          this.dom.panelCreateRoom.classList.add('hidden');
+          this.dom.panelJoinRoom.classList.remove('hidden');
+        }
+      }
+
+      showOnlineError(msg) {
+        if (!this.dom.onlineErrorBox) return;
+        if (!msg) {
+          this.dom.onlineErrorBox.classList.add('hidden');
+          this.dom.onlineErrorBox.textContent = '';
+        } else {
+          this.dom.onlineErrorBox.textContent = msg;
+          this.dom.onlineErrorBox.classList.remove('hidden');
+        }
+      }
+
+      async handleCreateRoom() {
+        this.showOnlineError('');
+        if (!this.dom.btnDoCreateRoom) return;
+        this.dom.btnDoCreateRoom.disabled = true;
+        this.dom.btnDoCreateRoom.textContent = 'Generating Room...';
+        
+        try {
+          const code = await this.network.createRoom();
+          this.roomCode = code;
+          this.onlineRole = 'host';
+          this.onlinePlayerId = 'green';
+          
+          if (this.dom.displayRoomCode) this.dom.displayRoomCode.textContent = code;
+          const directUrl = `${window.location.href.split('?')[0]}?room=${code}`;
+          if (this.dom.inputInviteLink) this.dom.inputInviteLink.value = directUrl;
+          
+          if (this.dom.boxCreateIdle) this.dom.boxCreateIdle.classList.add('hidden');
+          if (this.dom.boxRoomCreated) this.dom.boxRoomCreated.classList.remove('hidden');
+          this.dom.btnDoCreateRoom.disabled = false;
+          this.dom.btnDoCreateRoom.textContent = '🚀 Create New Room';
+        } catch (err) {
+          console.error(err);
+          this.showOnlineError('Could not initialize room: ' + (err.message || 'Please check your internet connection or try again.'));
+          this.dom.btnDoCreateRoom.disabled = false;
+          this.dom.btnDoCreateRoom.textContent = '🚀 Create New Room';
+        }
+      }
+
+      async handleCopyLink() {
+        if (!this.dom.inputInviteLink) return;
+        const link = this.dom.inputInviteLink.value;
+        if (!link) return;
+        try {
+          await navigator.clipboard.writeText(link);
+          const origText = this.dom.btnCopyLink.innerHTML;
+          this.dom.btnCopyLink.innerHTML = '✅ Copied!';
+          setTimeout(() => {
+            if (this.dom.btnCopyLink) this.dom.btnCopyLink.innerHTML = origText;
+          }, 2000);
+        } catch (err) {
+          this.dom.inputInviteLink.select();
+          document.execCommand('copy');
+          this.dom.btnCopyLink.innerHTML = '✅ Copied!';
+          setTimeout(() => {
+            if (this.dom.btnCopyLink) this.dom.btnCopyLink.innerHTML = '📋 Copy Link';
+          }, 2000);
+        }
+      }
+
+      async handleJoinRoom() {
+        this.showOnlineError('');
+        if (!this.dom.inputJoinCode) return;
+        const rawCode = this.dom.inputJoinCode.value.trim().toUpperCase();
+        if (!rawCode) {
+          this.showOnlineError('Please enter a room code.');
+          return;
+        }
+        
+        this.dom.btnDoJoinRoom.disabled = true;
+        if (this.dom.joinSpinner) this.dom.joinSpinner.classList.remove('hidden');
+        if (this.dom.joinStatusText) this.dom.joinStatusText.textContent = `Connecting to ${rawCode}...`;
+        
+        try {
+          await this.network.joinRoom(rawCode);
+          this.roomCode = rawCode;
+          this.onlineRole = 'client';
+          this.onlinePlayerId = 'red';
+        } catch (err) {
+          console.error(err);
+          this.showOnlineError('Failed to connect to room. Check the code and make sure the host has the room open.');
+          this.dom.btnDoJoinRoom.disabled = false;
+          if (this.dom.joinSpinner) this.dom.joinSpinner.classList.add('hidden');
+        }
+      }
+
+      startOnlineGame(role) {
+        this.isOnline = true;
+        this.closeAllModals();
+        
+        // Host is South (Dakshin / green), Client is North (Uttar / red)
+        const types = {
+          green: role === 'host' ? 'human' : 'remote',
+          red: role === 'host' ? 'remote' : 'human'
+        };
+        
+        if (this.dom.onlineBadgeCode) {
+          this.dom.onlineBadgeCode.textContent = `${this.roomCode} (${role === 'host' ? 'Dakshin' : 'Uttar'})`;
+        }
+        if (this.dom.onlineRoomBadge) this.dom.onlineRoomBadge.classList.remove('hidden');
+        if (this.dom.mainBrandTag) this.dom.mainBrandTag.textContent = 'Live Online Room';
+        
+        this.startNewGame(2, types);
+        this.audio.playBonus();
+      }
+
+      leaveOnlineRoom(notifyPeer = true) {
+        if (this.network) {
+          if (notifyPeer && this.network.isConnected) {
+            this.network.send({ type: 'LEAVE' });
+          }
+          this.network.disconnect();
+        }
+        this.isOnline = false;
+        this.onlineRole = null;
+        this.onlinePlayerId = null;
+        this.roomCode = null;
+        
+        if (this.dom.onlineRoomBadge) this.dom.onlineRoomBadge.classList.add('hidden');
+        if (this.dom.mainBrandTag) this.dom.mainBrandTag.textContent = 'Pass & Play';
+        if (this.dom.boxCreateIdle) this.dom.boxCreateIdle.classList.remove('hidden');
+        if (this.dom.boxRoomCreated) this.dom.boxRoomCreated.classList.add('hidden');
+        if (this.dom.joinSpinner) this.dom.joinSpinner.classList.add('hidden');
+        if (this.dom.btnDoJoinRoom) this.dom.btnDoJoinRoom.disabled = false;
+        if (this.dom.inputJoinCode) this.dom.inputJoinCode.value = '';
+      }
+
+      handleOpponentDisconnected() {
+        if (!this.isOnline) return;
+        alert('Your opponent disconnected or left the room.');
+        this.leaveOnlineRoom(false);
+        const curTypes = { ...this.game.playerTypes };
+        for (const p in curTypes) {
+          if (curTypes[p] === 'remote') curTypes[p] = 'bot';
+        }
+        this.game.playerTypes = curTypes;
+        this.render();
+        this.checkAITurn();
+      }
+
+      handleOnlineDataReceived(data) {
+        if (!data) return;
+        
+        if (data.type === 'START_GAME') {
+          this.startOnlineGame('client');
+        } else if (data.type === 'ROLL') {
+          const curPlayer = this.game.getCurrentPlayerId();
+          if (curPlayer === data.playerId) {
+            this.executeRoll(data.shells);
+          }
+        } else if (data.type === 'MOVE') {
+          const curPlayer = this.game.getCurrentPlayerId();
+          if (curPlayer === data.playerId) {
+            this.executeMove(data.pawnId, true);
+          }
+        } else if (data.type === 'LEAVE') {
+          this.handleOpponentDisconnected();
+        }
       }
 
       triggerRoll(playerId = null) {
@@ -2765,6 +3780,15 @@
           this.render();
           
           const isHuman = this.game.playerTypes[curPlayer] === 'human';
+
+          // Broadcast roll to online opponent
+          if (this.isOnline && isHuman && !customShells) {
+            this.network.send({
+              type: 'ROLL',
+              playerId: curPlayer,
+              shells: result.shells
+            });
+          }
           
           // AUTO-MOVE LOGIC:
           // When only 1 valid move is available, auto-execute without waiting for click!
@@ -2809,11 +3833,20 @@
         }, 1300);
       }
 
-      async executeMove(pawnId) {
+      async executeMove(pawnId, fromRemote = false) {
         const curPlayer = this.game.getCurrentPlayerId();
         const validMoves = this.game.getValidMoves(curPlayer, this.game.currentRoll);
         const chosen = validMoves.find(m => m.pawnId === pawnId);
         if (!chosen) return;
+
+        // Broadcast move to online opponent if this is local player
+        if (this.isOnline && !fromRemote && this.game.playerTypes[curPlayer] === 'human') {
+          this.network.send({
+            type: 'MOVE',
+            playerId: curPlayer,
+            pawnId: pawnId
+          });
+        }
         
         this.isAnimating = true;
         this.selectedPawnIndex = null;
@@ -3141,7 +4174,9 @@
             } else {
               rollBtn.disabled = true;
               if (isCurrentTurn && this.game.mustMove) {
-                rollBtn.textContent = isHuman ? 'Select Pawn' : 'Moving...';
+                rollBtn.textContent = pType === 'human' ? 'Select Pawn' : (pType === 'remote' ? 'Opponent choosing...' : 'Moving...');
+              } else if (isCurrentTurn && pType === 'remote') {
+                rollBtn.textContent = 'Opponent rolling...';
               } else {
                 rollBtn.textContent = 'Roll Kavadi';
               }
@@ -3150,14 +4185,33 @@
         });
         
         // Turn Guide Banner
-        if (this.game.canRoll) {
-          if (this.game.lastBonusReason) {
-            this.dom.turnBanner.innerHTML = `🎉 <b>${curConfig.name}</b>: ${this.game.lastBonusReason} Roll shells!`;
-          } else {
-            this.dom.turnBanner.innerHTML = `🎲 <b>${curConfig.name}</b>'s turn to roll Kavadi (${isHuman ? 'Space or click Roll' : 'Bot thinking...'})`;
+        if (this.isOnline) {
+          const isMyTurn = (curPlayer === this.onlinePlayerId);
+          if (this.game.canRoll) {
+            if (isMyTurn) {
+              this.dom.turnBanner.innerHTML = this.game.lastBonusReason
+                ? `🎉 <b>Bonus Roll!</b> (${this.game.lastBonusReason}) Roll your shells!`
+                : `🎲 <b>Your turn!</b> Press Space or click Roll Kavadi`;
+            } else {
+              this.dom.turnBanner.innerHTML = `⏳ Waiting for <b>${curConfig.name}</b> to roll shells...`;
+            }
+          } else if (this.game.mustMove) {
+            if (isMyTurn) {
+              this.dom.turnBanner.innerHTML = `♟️ You rolled <b>${this.game.currentRoll}</b>! Click glowing pawn on board or press 1-4`;
+            } else {
+              this.dom.turnBanner.innerHTML = `⏳ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>. Waiting for opponent to move...`;
+            }
           }
-        } else if (this.game.mustMove) {
-          this.dom.turnBanner.innerHTML = `♟️ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>! ${isHuman ? 'Click glowing pawn on board or press 1-4' : 'Selecting pawn...'}`;
+        } else {
+          if (this.game.canRoll) {
+            if (this.game.lastBonusReason) {
+              this.dom.turnBanner.innerHTML = `🎉 <b>${curConfig.name}</b>: ${this.game.lastBonusReason} Roll shells!`;
+            } else {
+              this.dom.turnBanner.innerHTML = `🎲 <b>${curConfig.name}</b>'s turn to roll Kavadi (${isHuman ? 'Space or click Roll' : 'Bot thinking...'})`;
+            }
+          } else if (this.game.mustMove) {
+            this.dom.turnBanner.innerHTML = `♟️ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>! ${isHuman ? 'Click glowing pawn on board or press 1-4' : 'Selecting pawn...'}`;
+          }
         }
       }
     }

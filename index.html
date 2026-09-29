@@ -182,6 +182,34 @@
       margin-bottom: 6px;
       flex-shrink: 0;
     }
+
+    /* 5-minute inactivity reminder toast */
+    .inactivity-toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-35px);
+      background: #2D1E18;
+      color: #FFF8EE;
+      border: 1.5px solid #C8A261;
+      padding: 10px 22px;
+      border-radius: 25px;
+      box-shadow: 0 8px 24px rgba(45, 30, 24, 0.4);
+      font-size: 0.88rem;
+      font-weight: 700;
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .inactivity-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
     
     /* =========================================================
        MAIN GAME ARENA - 4-CORNER LUDO ARCHITECTURE
@@ -2971,6 +2999,7 @@
         this.roomCode = null;
         this.maxPlayers = 2;
         this.assignedSlots = new Map(); // peerId -> { conn, color, stationName }
+        this.heartbeatTimer = null;
         this.callbacks = {
           onConnected: () => {},
           onPlayerJoined: () => {},
@@ -2980,6 +3009,28 @@
           onError: () => {},
           ...callbacks
         };
+      }
+
+      startHeartbeat() {
+        this.stopHeartbeat();
+        this.heartbeatTimer = setInterval(() => {
+          if (this.isHost) {
+            this.connections.forEach(c => {
+              if (c && c.open) {
+                try { c.send({ type: 'PING', ts: Date.now() }); } catch(e) {}
+              }
+            });
+          } else if (this.conn && this.conn.open) {
+            try { this.conn.send({ type: 'PING', ts: Date.now() }); } catch(e) {}
+          }
+        }, 3000);
+      }
+
+      stopHeartbeat() {
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer);
+          this.heartbeatTimer = null;
+        }
       }
 
       static getPlayerOrder(count) {
@@ -3053,7 +3104,9 @@
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
               ]
             }
           });
@@ -3100,6 +3153,7 @@
         this.connections.push(conn);
 
         conn.on('open', () => {
+          this.startHeartbeat();
           // Handshake to joining guest
           conn.send({
             type: 'ROOM_INFO',
@@ -3122,6 +3176,13 @@
         });
 
         conn.on('data', (data) => {
+          if (data && data.type === 'PING') {
+            try { conn.send({ type: 'PONG', ts: data.ts }); } catch(e) {}
+            return;
+          }
+          if (data && data.type === 'PONG') {
+            return;
+          }
           this.callbacks.onDataReceived(data, conn);
           // Star Relay: If guest sent ROLL or MOVE, relay to other guests
           if (data && (data.type === 'ROLL' || data.type === 'MOVE')) {
@@ -3171,7 +3232,9 @@
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
               ]
             }
           });
@@ -3182,11 +3245,19 @@
             this.conn = conn;
 
             conn.on('open', () => {
+              this.startHeartbeat();
               this.callbacks.onConnected({ isHost: false, roomCode: this.roomCode });
               resolve(this.roomCode);
             });
 
             conn.on('data', (data) => {
+              if (data && data.type === 'PING') {
+                try { conn.send({ type: 'PONG', ts: data.ts }); } catch(e) {}
+                return;
+              }
+              if (data && data.type === 'PONG') {
+                return;
+              }
               this.callbacks.onDataReceived(data, conn);
             });
 
@@ -3226,6 +3297,7 @@
       }
 
       disconnect() {
+        this.stopHeartbeat();
         if (this.connections && this.connections.length) {
           this.connections.forEach(c => {
             try { c.close(); } catch(e) {}
@@ -3262,6 +3334,10 @@
         this.onlineMaxPlayers = 2;
         this.roomCode = null;
         this.hasUrlRoomParam = false;
+        this.remoteActionQueue = [];
+        this.isProcessingQueue = false;
+        this.inactivityTimer = null;
+        this.toastTimeout = null;
         this.network = new NetworkManager({
           onConnected: (info) => {
             console.log('Network connected:', info);
@@ -4045,8 +4121,11 @@
 
       startOnlineGame(role, count = 2, myColor = 'green') {
         this.isOnline = true;
+        this.onlineRole = role;
         this.onlinePlayerId = myColor;
         this.onlineCount = count;
+        this.remoteActionQueue = [];
+        this.isProcessingQueue = false;
         this.closeAllModals();
         
         const order = count === 2 ? ['green', 'red'] : (count === 3 ? ['green', 'yellow', 'red'] : ['green', 'yellow', 'red', 'blue']);
@@ -4069,13 +4148,21 @@
         if (this.dom.mainBrandTag) this.dom.mainBrandTag.textContent = `Live Room (${count}P)`;
         
         this.startNewGame(count, types);
+        // Request Web Notification permission so tabbed-out players get alerted on 5m inactivity
+        if ('Notification' in window && Notification.permission === 'default') {
+          try { Notification.requestPermission(); } catch (e) {}
+        }
+        this.resetInactivityTimer();
         this.audio.playBonus();
       }
 
       leaveOnlineRoom(notifyPeer = true) {
+        this.clearInactivityTimer();
+        this.remoteActionQueue = [];
+        this.isProcessingQueue = false;
         if (this.network) {
           if (notifyPeer) {
-            this.network.send({ type: 'LEAVE' });
+            this.network.send({ type: 'LEAVE', playerId: this.onlinePlayerId });
           }
           this.network.disconnect();
         }
@@ -4099,38 +4186,78 @@
 
       handlePlayerDisconnected(playerId) {
         if (!this.isOnline) return;
+        // In online rooms, NO BOTS jump into the game.
+        // The game simply waits patiently for the player without scary countdowns.
+      }
+
+      handleOpponentDisconnected(disconnectedColor = null) {
+        if (!this.isOnline) return;
+        // In online rooms, NO BOTS jump into the game.
+      }
+
+      showInactivityToast(htmlMsg, duration = 7000) {
+        let toast = document.getElementById('inactivity-toast');
+        if (!toast) {
+          toast = document.createElement('div');
+          toast.id = 'inactivity-toast';
+          toast.className = 'inactivity-toast';
+          document.body.appendChild(toast);
+        }
+        toast.innerHTML = htmlMsg;
+        toast.classList.add('show');
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
+        this.toastTimeout = setTimeout(() => {
+          if (toast) toast.classList.remove('show');
+        }, duration);
+      }
+
+      resetInactivityTimer() {
+        this.clearInactivityTimer();
+        if (!this.isOnline || (this.game && this.game.winner)) return;
+
+        // 5 minutes = 300,000 ms
+        const INACTIVITY_MS = 5 * 60 * 1000;
+        this.inactivityTimer = setTimeout(() => {
+          this.triggerInactivityNotification();
+        }, INACTIVITY_MS);
+      }
+
+      clearInactivityTimer() {
+        if (this.inactivityTimer) {
+          clearTimeout(this.inactivityTimer);
+          this.inactivityTimer = null;
+        }
+      }
+
+      triggerInactivityNotification() {
+        if (!this.isOnline || (this.game && this.game.winner)) return;
+        const curPlayer = this.game.getCurrentPlayerId();
+        const isMyTurn = (curPlayer === this.onlinePlayerId);
         const colorNames = {
           green: 'Dakshin (South)',
           yellow: 'Purva (East)',
           red: 'Uttar (North)',
           blue: 'Pashchim (West)'
         };
-        const pName = colorNames[playerId] || playerId;
-        this.dom.turnBanner.innerHTML = `⚠️ <b>${pName}</b> disconnected. AI Bot has taken over their pawns!`;
-        if (this.game && this.game.playerTypes[playerId]) {
-          this.game.playerTypes[playerId] = 'bot';
-          this.render();
-          this.checkAITurn();
-        }
-      }
+        const pName = colorNames[curPlayer] || curPlayer;
 
-      handleOpponentDisconnected(disconnectedColor = null) {
-        if (!this.isOnline) return;
-        if (this.onlineRole === 'host') {
-          if (disconnectedColor) {
-            this.handlePlayerDisconnected(disconnectedColor);
+        if (isMyTurn) {
+          this.showInactivityToast('🔔 <b>Reminder:</b> It\'s your turn! Please roll the dice or move your pawn.', 8000);
+          this.audio.playBonus();
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('Champul: It\'s your turn!', {
+                body: '5 minutes have passed on your turn. Please roll or move!',
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎲</text></svg>'
+              });
+            } catch (e) {}
           }
         } else {
-          alert('Host closed the room or lost connection.');
-          this.leaveOnlineRoom(false);
-          const curTypes = { ...this.game.playerTypes };
-          for (const p in curTypes) {
-            if (curTypes[p] === 'remote') curTypes[p] = 'bot';
-          }
-          this.game.playerTypes = curTypes;
-          this.render();
-          this.checkAITurn();
+          this.showInactivityToast(`⏳ Waiting for <b>${pName}</b> (inactive for 5 minutes)...`, 8000);
         }
+
+        // Re-arm timer for another 5 minutes if still no move made
+        this.resetInactivityTimer();
       }
 
       handleOnlineDataReceived(data) {
@@ -4151,21 +4278,96 @@
           this.leaveOnlineRoom(false);
         } else if (data.type === 'START_GAME') {
           this.startOnlineGame('client', data.count || 2, this.onlinePlayerId);
-        } else if (data.type === 'ROLL') {
-          const curPlayer = this.game.getCurrentPlayerId();
-          if (curPlayer === data.playerId) {
-            this.executeRoll(data.shells);
-          }
-        } else if (data.type === 'MOVE') {
-          const curPlayer = this.game.getCurrentPlayerId();
-          if (curPlayer === data.playerId) {
-            this.executeMove(data.pawnId, true);
-          }
+        } else if (data.type === 'ROLL' || data.type === 'MOVE' || data.type === 'STATE_SYNC') {
+          this.enqueueRemoteAction(data);
         } else if (data.type === 'PLAYER_DISCONNECTED') {
           this.handlePlayerDisconnected(data.playerId);
         } else if (data.type === 'LEAVE') {
-          this.handleOpponentDisconnected();
+          const colorNames = {
+            green: 'Dakshin (South)',
+            yellow: 'Purva (East)',
+            red: 'Uttar (North)',
+            blue: 'Pashchim (West)'
+          };
+          const pName = colorNames[data.playerId] || 'A player';
+          this.showInactivityToast(`ℹ️ <b>${pName}</b> left the game.`, 5000);
         }
+      }
+
+      enqueueRemoteAction(action) {
+        this.remoteActionQueue.push(action);
+        this.drainRemoteQueue();
+      }
+
+      async drainRemoteQueue() {
+        if (this.isProcessingQueue) return;
+        this.isProcessingQueue = true;
+
+        while (this.remoteActionQueue.length > 0) {
+          if (this.isAnimating) {
+            await new Promise(r => setTimeout(r, 50));
+            continue;
+          }
+
+          const action = this.remoteActionQueue.shift();
+          if (!action) break;
+
+          if (action.type === 'ROLL') {
+            const curPlayer = this.game.getCurrentPlayerId();
+            if (curPlayer === action.playerId) {
+              await this.executeRoll(action.shells);
+            }
+          } else if (action.type === 'MOVE') {
+            const curPlayer = this.game.getCurrentPlayerId();
+            if (curPlayer === action.playerId) {
+              await this.executeMove(action.pawnId, true, action);
+            }
+          } else if (action.type === 'STATE_SYNC') {
+            this.applyStateSync(action);
+          }
+        }
+
+        this.isProcessingQueue = false;
+      }
+
+      broadcastStateSync() {
+        if (!this.isOnline || this.onlineRole !== 'host') return;
+        const payload = {
+          type: 'STATE_SYNC',
+          pawns: JSON.parse(JSON.stringify(this.game.pawns)),
+          kills: { ...this.game.kills },
+          currentTurnIndex: this.game.currentTurnIndex,
+          canRoll: this.game.canRoll,
+          mustMove: this.game.mustMove,
+          currentRoll: this.game.currentRoll,
+          rankings: [...this.game.rankings],
+          winner: this.game.winner,
+          lastBonusReason: this.game.lastBonusReason
+        };
+        this.network.broadcast(payload);
+      }
+
+      applyStateSync(sync) {
+        if (!this.isOnline || this.onlineRole === 'host' || !this.game) return;
+        if (sync.pawns) {
+          for (const pid in sync.pawns) {
+            if (this.game.pawns[pid]) {
+              this.game.pawns[pid] = sync.pawns[pid];
+            }
+          }
+        }
+        if (sync.kills) {
+          this.game.kills = { ...sync.kills };
+        }
+        if (sync.currentTurnIndex !== undefined) this.game.currentTurnIndex = sync.currentTurnIndex;
+        if (sync.canRoll !== undefined) this.game.canRoll = sync.canRoll;
+        if (sync.mustMove !== undefined) this.game.mustMove = sync.mustMove;
+        if (sync.currentRoll !== undefined) this.game.currentRoll = sync.currentRoll;
+        if (sync.rankings) this.game.rankings = [...sync.rankings];
+        if (sync.winner !== undefined) this.game.winner = sync.winner;
+        if (sync.lastBonusReason !== undefined) this.game.lastBonusReason = sync.lastBonusReason;
+        this.render();
+        this.resetInactivityTimer();
       }
 
       triggerRoll(playerId = null) {
@@ -4173,62 +4375,94 @@
         const curPlayer = this.game.getCurrentPlayerId();
         if (playerId && playerId !== curPlayer) return;
         if (this.game.playerTypes[curPlayer] !== 'human') return;
-        this.executeRoll();
+
+        // Pre-generate shells outcome immediately at t = 0
+        const shells = [
+          Math.random() < 0.5 ? 1 : 0,
+          Math.random() < 0.5 ? 1 : 0,
+          Math.random() < 0.5 ? 1 : 0,
+          Math.random() < 0.5 ? 1 : 0
+        ];
+
+        // Send to online peers instantly at t = 0 so both clients tumble in sync
+        if (this.isOnline) {
+          this.network.send({
+            type: 'ROLL',
+            playerId: curPlayer,
+            shells: shells
+          });
+        }
+
+        this.executeRoll(shells);
       }
 
       executeRoll(customShells = null) {
-        const curPlayer = this.game.getCurrentPlayerId();
-        const cluster = this.dom.clusters[curPlayer];
-        const shells = cluster ? cluster.querySelectorAll('.kavadi-shell') : [];
-        
-        this.audio.playShellsRattle();
-        shells.forEach(s => s.classList.add('rolling'));
-        
-        const rollBtn = this.dom.rollButtons[curPlayer];
-        if (rollBtn) rollBtn.disabled = true;
-        
-        setTimeout(() => {
-          shells.forEach(s => s.classList.remove('rolling'));
-          const result = this.game.rollDice(customShells);
-          if (!result) return;
+        return new Promise(resolve => {
+          const curPlayer = this.game.getCurrentPlayerId();
+          const cluster = this.dom.clusters[curPlayer];
+          const shells = cluster ? cluster.querySelectorAll('.kavadi-shell') : [];
           
-          this.updateStationKavadiVisuals(curPlayer, result.shells);
-          if (result.roll === 8) this.audio.playBonus();
+          this.isAnimating = true;
+          this.audio.playShellsRattle();
+          shells.forEach(s => s.classList.add('rolling'));
           
-          const scoreBadge = this.dom.scoreBadges[curPlayer];
-          if (scoreBadge) {
-            scoreBadge.textContent = result.roll === 8 ? '8 Pts (Bonus!)' : `${result.roll} Pt${result.roll > 1 ? 's' : ''}`;
-            scoreBadge.classList.remove('empty-disabled');
-            scoreBadge.style.borderColor = result.roll === 8 ? '#C8A261' : '#D8C8B5';
-          }
+          const rollBtn = this.dom.rollButtons[curPlayer];
+          if (rollBtn) rollBtn.disabled = true;
           
-          this.render();
-          
-          const isHuman = this.game.playerTypes[curPlayer] === 'human';
+          const determinedShells = customShells || [
+            Math.random() < 0.5 ? 1 : 0,
+            Math.random() < 0.5 ? 1 : 0,
+            Math.random() < 0.5 ? 1 : 0,
+            Math.random() < 0.5 ? 1 : 0
+          ];
 
-          // Broadcast roll to online opponent
-          if (this.isOnline && isHuman && !customShells) {
-            this.network.send({
-              type: 'ROLL',
-              playerId: curPlayer,
-              shells: result.shells
-            });
-          }
-          
-          // AUTO-MOVE LOGIC:
-          // When only 1 valid move is available, auto-execute without waiting for click!
-          if (isHuman && result.validMoves && result.validMoves.length === 1 && !this.game.winner) {
-            const onlyPawnId = result.validMoves[0].pawnId;
-            this.dom.turnBanner.textContent = `⚡ Auto-advancing pawn ${onlyPawnId + 1}...`;
-            setTimeout(() => {
-              if (this.game.mustMove && !this.isAnimating) {
-                this.executeMove(onlyPawnId);
+          setTimeout(() => {
+            shells.forEach(s => s.classList.remove('rolling'));
+            const result = this.game.rollDice(determinedShells);
+            this.isAnimating = false;
+            if (!result) {
+              resolve(null);
+              return;
+            }
+            
+            this.updateStationKavadiVisuals(curPlayer, result.shells);
+            if (result.roll === 8) this.audio.playBonus();
+            
+            const scoreBadge = this.dom.scoreBadges[curPlayer];
+            if (scoreBadge) {
+              scoreBadge.textContent = result.roll === 8 ? '8 Pts (Bonus!)' : `${result.roll} Pt${result.roll > 1 ? 's' : ''}`;
+              scoreBadge.classList.remove('empty-disabled');
+              scoreBadge.style.borderColor = result.roll === 8 ? '#C8A261' : '#D8C8B5';
+            }
+            
+            this.render();
+            this.resetInactivityTimer();
+            
+            const isHuman = this.game.playerTypes[curPlayer] === 'human';
+
+            // If turn passed with zero moves, Host authoritative sync
+            if (result.validMoves && result.validMoves.length === 0) {
+              if (this.isOnline && this.onlineRole === 'host') {
+                this.broadcastStateSync();
               }
-            }, 360);
-          } else {
-            this.checkAITurn();
-          }
-        }, 450);
+            }
+            
+            // AUTO-MOVE LOGIC:
+            // When only 1 valid move is available, auto-execute without waiting for click!
+            if (isHuman && result.validMoves && result.validMoves.length === 1 && !this.game.winner) {
+              const onlyPawnId = result.validMoves[0].pawnId;
+              this.dom.turnBanner.textContent = `⚡ Auto-advancing pawn ${onlyPawnId + 1}...`;
+              setTimeout(() => {
+                if (this.game.mustMove && !this.isAnimating) {
+                  this.executeMove(onlyPawnId);
+                }
+              }, 300);
+            } else {
+              this.checkAITurn();
+            }
+            resolve(result);
+          }, 360);
+        });
       }
 
       triggerMove(pawnId) {
@@ -4258,18 +4492,45 @@
         }, 1300);
       }
 
-      async executeMove(pawnId, fromRemote = false) {
+      async executeMove(pawnId, fromRemote = false, remoteData = null) {
         const curPlayer = this.game.getCurrentPlayerId();
+        
+        // Safety: If received from remote and currentRoll was null, restore from remoteData
+        if (fromRemote && this.game.currentRoll === null && remoteData && remoteData.roll) {
+          this.game.currentRoll = remoteData.roll;
+          this.game.mustMove = true;
+          this.game.canRoll = false;
+        }
+
         const validMoves = this.game.getValidMoves(curPlayer, this.game.currentRoll);
-        const chosen = validMoves.find(m => m.pawnId === pawnId);
+        let chosen = validMoves.find(m => m.pawnId === pawnId);
+
+        // Fallback: If not found in validMoves but remote provided explicit path details
+        if (!chosen && fromRemote && remoteData && remoteData.targetStep !== undefined) {
+          chosen = {
+            pawnId: pawnId,
+            targetStep: remoteData.targetStep,
+            waypoints: remoteData.waypoints || [{ step: remoteData.targetStep }],
+            willKill: remoteData.willKill || false,
+            killedOpponent: remoteData.killedOpponent || null,
+            reachesGoal: remoteData.reachesGoal || false
+          };
+        }
+
         if (!chosen) return;
 
-        // Broadcast move to online opponent if this is local player
+        // Broadcast move to online opponent if this is local human player
         if (this.isOnline && !fromRemote && this.game.playerTypes[curPlayer] === 'human') {
           this.network.send({
             type: 'MOVE',
             playerId: curPlayer,
-            pawnId: pawnId
+            pawnId: pawnId,
+            roll: this.game.currentRoll,
+            targetStep: chosen.targetStep,
+            waypoints: chosen.waypoints,
+            willKill: chosen.willKill,
+            killedOpponent: chosen.killedOpponent,
+            reachesGoal: chosen.reachesGoal
           });
         }
         
@@ -4280,7 +4541,7 @@
           const visualStep = chosen.waypoints[i].step;
           this.audio.playPawnMove();
           this.renderVisualStep(curPlayer, pawnId, visualStep);
-          await new Promise(r => setTimeout(r, 320));
+          await new Promise(r => setTimeout(r, 260));
         }
         
         let killedPawnOrigStep = null;
@@ -4305,7 +4566,7 @@
             ghost.innerHTML = `${res.killed.pawnId + 1}`;
             killCluster.appendChild(ghost);
           }
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 700));
           
           this.render();
           const homeCoords = this.game.getCellCoords(res.killed.playerId, 0);
@@ -4318,7 +4579,7 @@
               }
             });
           }
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 800));
           this.isAnimating = false;
         }
         
@@ -4335,6 +4596,13 @@
         }
         
         this.render();
+        this.resetInactivityTimer();
+
+        // Host authoritatively broadcasts state snapshot after every move
+        if (this.isOnline && this.onlineRole === 'host') {
+          this.broadcastStateSync();
+        }
+
         this.checkAITurn();
       }
 
@@ -4375,6 +4643,7 @@
       }
 
       checkAITurn() {
+        if (this.isOnline) return; // In online room games, NO BOTS!
         if (this.game.winner || this.isAnimating) return;
         const curPlayer = this.game.getCurrentPlayerId();
         if (this.game.playerTypes[curPlayer] === 'bot') {

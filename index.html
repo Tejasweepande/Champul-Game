@@ -4,6 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Champul (चम्पूल) - 5x5 Traditional Indian Board Game</title>
+  <!-- Progressive Web App (PWA) Meta & Icons -->
+  <meta name="theme-color" content="#2D1E18">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Champul">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- Register PWA Service Worker for Offline Local App Support -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          console.log('Champul PWA registered with scope:', reg.scope);
+        }).catch(err => {
+          console.warn('PWA registration error:', err);
+        });
+      });
+    }
+  </script>
   <!-- PeerJS Serverless WebRTC for Zero-Cost Online Multiplayer Rooms -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
   <script>

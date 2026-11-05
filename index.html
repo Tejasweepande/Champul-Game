@@ -2532,15 +2532,15 @@
       justify-content: center;
       margin-bottom: 14px;
     }
-    .btn-copy-code, .btn-share-code {
-      flex: 1;
+    .btn-copy-code {
+      width: 100%;
       padding: 10px 14px;
       background: #2E6B4F;
       color: #FFFFFF;
       border: none;
       border-radius: 8px;
       font-weight: 800;
-      font-size: 0.85rem;
+      font-size: 0.88rem;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -2556,13 +2556,6 @@
     .btn-copy-code.copied {
       background: #C8A261;
       color: #2D1A0E;
-    }
-    .btn-share-code {
-      background: #B45309;
-      box-shadow: 0 2px 6px rgba(180, 83, 9, 0.25);
-    }
-    .btn-share-code:hover {
-      background: #92400E;
     }
     @keyframes rollPulse {
       0%, 100% {
@@ -3306,8 +3299,7 @@
 
               <!-- Tab 1: Create Room Content -->
               <div id="panel-create-room" class="online-panel">
-                <p class="online-desc" style="margin-bottom: 12px;">Create a private multiplayer room and invite up to 4 friends to play live from anywhere!</p>
-                
+                                
                 <div class="room-action-box" id="box-create-idle" style="display: flex; flex-direction: column; gap: 14px;">
                   <div style="background: #FFFFFF; border: 1.5px solid #E4D7C5; border-radius: 12px; padding: 12px 14px; text-align: left;">
                     <div style="font-size: 0.86rem; font-weight: 800; color: #3D2B1F; margin-bottom: 8px;">
@@ -3351,11 +3343,9 @@
                 <div class="room-created-card hidden" id="box-room-created">
                   <div class="room-code-label">YOUR ROOM CODE</div>
                   <div class="room-code-display" id="display-room-code" title="Tap to copy code">------</div>
-                  <p class="room-code-sub">Tell your friend to tap <b>Join Room</b> and enter this code:</p>
-                  
+                                    
                   <div class="room-code-btn-row">
                     <button type="button" class="btn-copy-code" id="btn-copy-code">📋 Copy Code</button>
-                    <button type="button" class="btn-share-code hidden" id="btn-share-code">📲 Share Code</button>
                   </div>
 
                   <!-- Live Lobby Slot Badges -->
@@ -4382,7 +4372,6 @@
           boxRoomCreated: document.getElementById('box-room-created'),
           displayRoomCode: document.getElementById('display-room-code'),
           btnCopyCode: document.getElementById('btn-copy-code'),
-          btnShareCode: document.getElementById('btn-share-code'),
           waitingSpinner: document.getElementById('waiting-spinner'),
           waitingText: document.getElementById('waiting-text'),
           lobbySlotsContainer: document.getElementById('lobby-slots-container'),
@@ -5123,9 +5112,6 @@
         if (this.dom.displayRoomCode) {
           this.dom.displayRoomCode.addEventListener('click', () => this.handleCopyCode());
         }
-        if (this.dom.btnShareCode) {
-          this.dom.btnShareCode.addEventListener('click', () => this.handleShareCode());
-        }
         if (this.dom.btnDoJoinRoom) {
           this.dom.btnDoJoinRoom.addEventListener('click', () => this.handleJoinRoom());
         }
@@ -5382,9 +5368,6 @@
           this.onlinePlayerId = 'green';
           
           if (this.dom.displayRoomCode) this.dom.displayRoomCode.textContent = code;
-          if (this.dom.btnShareCode && navigator.share) {
-            this.dom.btnShareCode.classList.remove('hidden');
-          }
           
           if (this.dom.boxCreateIdle) this.dom.boxCreateIdle.classList.add('hidden');
           if (this.dom.boxRoomCreated) this.dom.boxRoomCreated.classList.remove('hidden');
@@ -5450,21 +5433,6 @@
           }, 2000);
         }
       }
-
-      async handleShareCode() {
-        if (!this.roomCode) return;
-        if (navigator.share) {
-          try {
-            await navigator.share({
-              title: 'Champul Room Code',
-              text: `Join my Champul board game match! Room Code: ${this.roomCode}`
-            });
-            return;
-          } catch (e) {}
-        }
-        this.handleCopyCode();
-      }
-
       async handleJoinRoom() {
         this.showOnlineError('');
         if (!this.dom.inputJoinCode) return;

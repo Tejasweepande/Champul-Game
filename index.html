@@ -2508,32 +2508,77 @@
     }
     .room-code-display {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 2rem;
+      font-size: 2.1rem;
       font-weight: 900;
       color: #2E6B4F;
       letter-spacing: 3px;
-      margin: 6px 0;
+      margin: 8px 0;
+      cursor: pointer;
+      user-select: all;
+      transition: transform 0.15s ease;
+    }
+    .room-code-display:active {
+      transform: scale(0.96);
     }
     .room-code-sub {
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       color: #7A6553;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      line-height: 1.35;
     }
-    .invite-link-row {
+    .room-code-btn-row {
       display: flex;
-      gap: 6px;
+      gap: 8px;
+      justify-content: center;
       margin-bottom: 14px;
     }
-    .invite-link-row input {
+    .btn-copy-code, .btn-share-code {
       flex: 1;
-      padding: 8px 10px;
-      font-size: 0.8rem;
-      border: 1.5px solid #CFBEA7;
+      padding: 10px 14px;
+      background: #2E6B4F;
+      color: #FFFFFF;
+      border: none;
       border-radius: 8px;
-      background: #FFFFFF;
-      color: #4A3A2C;
-      font-family: inherit;
-      outline: none;
+      font-weight: 800;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 2px 6px rgba(46, 107, 79, 0.25);
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-copy-code:hover {
+      background: #245740;
+    }
+    .btn-copy-code.copied {
+      background: #C8A261;
+      color: #2D1A0E;
+    }
+    .btn-share-code {
+      background: #B45309;
+      box-shadow: 0 2px 6px rgba(180, 83, 9, 0.25);
+    }
+    .btn-share-code:hover {
+      background: #92400E;
+    }
+    @keyframes rollPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(46, 107, 79, 0.7);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(46, 107, 79, 0);
+        transform: scale(1.04);
+      }
+    }
+    .btn-station-roll.pulse-active {
+      animation: rollPulse 1.4s infinite ease-in-out;
+      background: linear-gradient(135deg, #2E6B4F, #1E4633) !important;
+      border-color: #52B788 !important;
+      color: #FFFFFF !important;
     }
     .lobby-slots-container {
       background: #FFFFFF;
@@ -3305,12 +3350,12 @@
 
                 <div class="room-created-card hidden" id="box-room-created">
                   <div class="room-code-label">YOUR ROOM CODE</div>
-                  <div class="room-code-display" id="display-room-code">------</div>
-                  <p class="room-code-sub">Send this code to friends, or copy the direct link:</p>
+                  <div class="room-code-display" id="display-room-code" title="Tap to copy code">------</div>
+                  <p class="room-code-sub">Tell your friend to tap <b>Join Room</b> and enter this code:</p>
                   
-                  <div class="invite-link-row">
-                    <input type="text" id="input-invite-link" readonly value="" />
-                    <button type="button" class="btn-copy" id="btn-copy-link">📋 Copy Link</button>
+                  <div class="room-code-btn-row">
+                    <button type="button" class="btn-copy-code" id="btn-copy-code">📋 Copy Code</button>
+                    <button type="button" class="btn-share-code hidden" id="btn-share-code">📲 Share Code</button>
                   </div>
 
                   <!-- Live Lobby Slot Badges -->
@@ -3940,8 +3985,22 @@
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
+                { urls: 'stun:openrelay.metered.ca:80' },
+                {
+                  urls: 'turn:openrelay.metered.ca:80',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                }
               ]
             }
           });
@@ -3965,7 +4024,8 @@
 
       setupHostConnection(conn) {
         // If room is full
-        if (this.connections.length >= (this.maxPlayers - 1)) {
+        const openConns = this.connections.filter(c => c.open);
+        if (openConns.length >= (this.maxPlayers - 1)) {
           conn.on('open', () => {
             conn.send({ type: 'ROOM_FULL', message: 'Room is already full.' });
             setTimeout(() => conn.close(), 600);
@@ -3985,9 +4045,11 @@
           color: assignedColor,
           stationName: NetworkManager.getStationName(assignedColor)
         });
-        this.connections.push(conn);
 
         conn.on('open', () => {
+          if (!this.connections.includes(conn)) {
+            this.connections.push(conn);
+          }
           this.startHeartbeat();
           // Handshake to joining guest
           conn.send({
@@ -4068,8 +4130,22 @@
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
+                { urls: 'stun:openrelay.metered.ca:80' },
+                {
+                  urls: 'turn:openrelay.metered.ca:80',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                  username: 'openrelay',
+                  credential: 'openrelay'
+                }
               ]
             }
           });
@@ -4181,20 +4257,30 @@
           },
           onPlayerJoined: (conn, assignedColor) => {
             if (this.onlineRole === 'host') {
-              const totalJoined = 1 + this.network.connections.length;
+              const activeCount = 1 + this.network.connections.filter(c => c.open).length;
               if (this.dom.waitingText) {
-                this.dom.waitingText.textContent = `Waiting for players (${totalJoined}/${this.onlineMaxPlayers} joined)...`;
+                if (activeCount >= this.onlineMaxPlayers) {
+                  this.dom.waitingText.textContent = `All ${activeCount} players connected! Starting match...`;
+                } else {
+                  this.dom.waitingText.textContent = `Waiting for players (${activeCount}/${this.onlineMaxPlayers} joined)...`;
+                }
               }
               if (this.dom.btnHostStartEarly) {
-                if (totalJoined >= 2) {
+                if (activeCount >= 2) {
                   this.dom.btnHostStartEarly.classList.remove('hidden');
-                  this.dom.btnHostStartEarly.textContent = `▶️ Start Match Now (${totalJoined} Players)`;
+                  this.dom.btnHostStartEarly.textContent = `▶️ Start Match Now (${activeCount} Players)`;
                 } else {
                   this.dom.btnHostStartEarly.classList.add('hidden');
                 }
               }
+              // If match is already in progress, immediately launch this connected player into the match!
+              if (this.isOnline) {
+                conn.send({ type: 'START_GAME', count: this.onlineCount || this.onlineMaxPlayers });
+                setTimeout(() => this.broadcastStateSync(), 300);
+                return;
+              }
               // Auto-launch match if room capacity reached!
-              if (totalJoined >= this.onlineMaxPlayers) {
+              if (activeCount >= this.onlineMaxPlayers) {
                 setTimeout(() => {
                   if (this.onlineRole === 'host' && !this.isOnline) {
                     this.hostLaunchGame(this.onlineMaxPlayers);
@@ -4295,8 +4381,8 @@
           boxCreateIdle: document.getElementById('box-create-idle'),
           boxRoomCreated: document.getElementById('box-room-created'),
           displayRoomCode: document.getElementById('display-room-code'),
-          inputInviteLink: document.getElementById('input-invite-link'),
-          btnCopyLink: document.getElementById('btn-copy-link'),
+          btnCopyCode: document.getElementById('btn-copy-code'),
+          btnShareCode: document.getElementById('btn-share-code'),
           waitingSpinner: document.getElementById('waiting-spinner'),
           waitingText: document.getElementById('waiting-text'),
           lobbySlotsContainer: document.getElementById('lobby-slots-container'),
@@ -5031,8 +5117,14 @@
         if (this.dom.btnDoCreateRoom) {
           this.dom.btnDoCreateRoom.addEventListener('click', () => this.handleCreateRoom());
         }
-        if (this.dom.btnCopyLink) {
-          this.dom.btnCopyLink.addEventListener('click', () => this.handleCopyLink());
+        if (this.dom.btnCopyCode) {
+          this.dom.btnCopyCode.addEventListener('click', () => this.handleCopyCode());
+        }
+        if (this.dom.displayRoomCode) {
+          this.dom.displayRoomCode.addEventListener('click', () => this.handleCopyCode());
+        }
+        if (this.dom.btnShareCode) {
+          this.dom.btnShareCode.addEventListener('click', () => this.handleShareCode());
         }
         if (this.dom.btnDoJoinRoom) {
           this.dom.btnDoJoinRoom.addEventListener('click', () => this.handleJoinRoom());
@@ -5290,8 +5382,9 @@
           this.onlinePlayerId = 'green';
           
           if (this.dom.displayRoomCode) this.dom.displayRoomCode.textContent = code;
-          const directUrl = `${window.location.href.split('?')[0]}?room=${code}`;
-          if (this.dom.inputInviteLink) this.dom.inputInviteLink.value = directUrl;
+          if (this.dom.btnShareCode && navigator.share) {
+            this.dom.btnShareCode.classList.remove('hidden');
+          }
           
           if (this.dom.boxCreateIdle) this.dom.boxCreateIdle.classList.add('hidden');
           if (this.dom.boxRoomCreated) this.dom.boxRoomCreated.classList.remove('hidden');
@@ -5312,32 +5405,64 @@
       hostLaunchGame(finalPlayerCount) {
         if (this.onlineRole !== 'host' || this.isOnline) return;
         const count = Math.min(finalPlayerCount, 4);
-        this.network.broadcast({
-          type: 'START_GAME',
-          count: count
-        });
+        
+        // Broadcast START_GAME multiple times with spacing so mobile UDP packets are never lost
+        const msg = { type: 'START_GAME', count: count };
+        this.network.broadcast(msg);
+        setTimeout(() => this.network.broadcast(msg), 250);
+        setTimeout(() => this.network.broadcast(msg), 600);
+        
         this.startOnlineGame('host', count, 'green');
+        setTimeout(() => this.broadcastStateSync(), 400);
       }
 
-      async handleCopyLink() {
-        if (!this.dom.inputInviteLink) return;
-        const link = this.dom.inputInviteLink.value;
-        if (!link) return;
-        try {
-          await navigator.clipboard.writeText(link);
-          const origText = this.dom.btnCopyLink.innerHTML;
-          this.dom.btnCopyLink.innerHTML = '✅ Copied!';
+      async handleCopyCode() {
+        if (!this.roomCode) return;
+        let copied = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(this.roomCode);
+            copied = true;
+          } catch (e) {}
+        }
+        if (!copied) {
+          const temp = document.createElement('textarea');
+          temp.value = this.roomCode;
+          temp.style.position = 'fixed';
+          temp.style.opacity = '0';
+          document.body.appendChild(temp);
+          temp.select();
+          try {
+            document.execCommand('copy');
+            copied = true;
+          } catch (e) {}
+          document.body.removeChild(temp);
+        }
+        if (this.dom.btnCopyCode) {
+          const origText = this.dom.btnCopyCode.innerHTML;
+          this.dom.btnCopyCode.innerHTML = '✅ Code Copied!';
+          this.dom.btnCopyCode.classList.add('copied');
           setTimeout(() => {
-            if (this.dom.btnCopyLink) this.dom.btnCopyLink.innerHTML = origText;
-          }, 2000);
-        } catch (err) {
-          this.dom.inputInviteLink.select();
-          document.execCommand('copy');
-          this.dom.btnCopyLink.innerHTML = '✅ Copied!';
-          setTimeout(() => {
-            if (this.dom.btnCopyLink) this.dom.btnCopyLink.innerHTML = '📋 Copy Link';
+            if (this.dom.btnCopyCode) {
+              this.dom.btnCopyCode.innerHTML = origText;
+              this.dom.btnCopyCode.classList.remove('copied');
+            }
           }, 2000);
         }
+      }
+
+      async handleShareCode() {
+        if (!this.roomCode) return;
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: 'Champul Room Code',
+              text: `Join my Champul board game match! Room Code: ${this.roomCode}`
+            });
+            return;
+          } catch (e) {}
+        }
+        this.handleCopyCode();
       }
 
       async handleJoinRoom() {
@@ -5534,8 +5659,14 @@
           this.showOnlineError('Room is full (maximum players reached).');
           this.leaveOnlineRoom(false);
         } else if (data.type === 'START_GAME') {
-          this.startOnlineGame('client', data.count || 2, this.onlinePlayerId);
+          if (!this.isOnline) {
+            this.startOnlineGame('client', data.count || 2, this.onlinePlayerId || 'red');
+          }
         } else if (data.type === 'ROLL' || data.type === 'MOVE' || data.type === 'STATE_SYNC') {
+          // Safety fallback: if guest was still in lobby when first action arrived, auto-launch match!
+          if (!this.isOnline && this.onlineRole === 'client') {
+            this.startOnlineGame('client', this.onlineMaxPlayers || 2, this.onlinePlayerId || 'red');
+          }
           this.enqueueRemoteAction(data);
         } else if (data.type === 'PLAYER_DISCONNECTED') {
           this.handlePlayerDisconnected(data.playerId);
@@ -6118,9 +6249,11 @@
           if (rollBtn) {
             if (isCurrentTurn && this.game.canRoll && pType === 'human' && !this.isAnimating) {
               rollBtn.disabled = false;
+              rollBtn.classList.add('pulse-active');
               rollBtn.textContent = this.game.lastBonusReason ? 'Bonus Roll!' : 'Roll Kavadi';
             } else {
               rollBtn.disabled = true;
+              rollBtn.classList.remove('pulse-active');
               if (isCurrentTurn && this.game.mustMove) {
                 rollBtn.textContent = pType === 'human' ? 'Select Pawn' : (pType === 'remote' ? 'Opponent choosing...' : 'Moving...');
               } else if (isCurrentTurn && pType === 'remote') {
@@ -6135,19 +6268,27 @@
         // Turn Guide Banner
         if (this.isOnline) {
           const isMyTurn = (curPlayer === this.onlinePlayerId);
+          const colorToName = {
+            green: 'Player 1 (Dakshin / Green)',
+            red: 'Player 2 (Uttar / Red)',
+            yellow: 'Player 3 (Purva / Yellow)',
+            blue: 'Player 4 (Pashchim / Blue)'
+          };
+          const pLabel = colorToName[curPlayer] || curConfig.name;
+
           if (this.game.canRoll) {
             if (isMyTurn) {
               this.dom.turnBanner.innerHTML = this.game.lastBonusReason
-                ? `🎉 <b>Bonus Roll!</b> (${this.game.lastBonusReason}) Roll your shells!`
-                : `🎲 <b>Your turn!</b> Press Space or click Roll Kavadi`;
+                ? `🎉 <b>Bonus Roll!</b> (${this.game.lastBonusReason}) Tap Roll Kavadi!`
+                : `🎲 <b>Your turn (${pLabel})!</b> Tap Roll Kavadi to roll shells`;
             } else {
-              this.dom.turnBanner.innerHTML = `⏳ Waiting for <b>${curConfig.name}</b> to roll shells...`;
+              this.dom.turnBanner.innerHTML = `⏳ <b>Match In Progress:</b> Waiting for <b>${pLabel}</b> to roll shells...`;
             }
           } else if (this.game.mustMove) {
             if (isMyTurn) {
               this.dom.turnBanner.innerHTML = `♟️ You rolled <b>${this.game.currentRoll}</b>! Click glowing pawn on board or press 1-4`;
             } else {
-              this.dom.turnBanner.innerHTML = `⏳ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>. Waiting for opponent to move...`;
+              this.dom.turnBanner.innerHTML = `⏳ <b>${pLabel}</b> rolled <b>${this.game.currentRoll}</b>. Waiting for opponent to move...`;
             }
           }
         } else {

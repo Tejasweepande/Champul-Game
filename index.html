@@ -667,6 +667,11 @@
       z-index: 20;
       animation: goalBurstAnim 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
     }
+    .goal-burst-final {
+      border: 6px solid #F59E0B !important;
+      box-shadow: 0 0 40px #F59E0B, inset 0 0 40px #F59E0B !important;
+      animation: goalBurstFinalAnim 1.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards !important;
+    }
     .goal-floating-text {
       position: absolute;
       top: -28px;
@@ -683,15 +688,71 @@
       z-index: 25;
       animation: goalTextFloat 1.2s ease-out forwards;
     }
+    .goal-floating-winner {
+      position: absolute;
+      top: -34px;
+      font-size: 1.12rem;
+      font-weight: 900;
+      color: #78350F;
+      background: linear-gradient(135deg, #FFFDF8, #FEF3C7);
+      padding: 6px 16px;
+      border-radius: 14px;
+      border: 2.5px solid #F59E0B;
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 30;
+      animation: goalWinnerFloat 2.2s ease-out forwards;
+    }
     @keyframes goalBurstAnim {
       0%   { transform: scale(0.4); opacity: 1; }
       100% { transform: scale(2.2); opacity: 0; }
+    }
+    @keyframes goalBurstFinalAnim {
+      0%   { transform: scale(0.4); opacity: 1; }
+      50%  { transform: scale(2.8); opacity: 0.9; }
+      100% { transform: scale(3.5); opacity: 0; }
     }
     @keyframes goalTextFloat {
       0%   { transform: translateY(0) scale(0.8); opacity: 0; }
       30%  { transform: translateY(-10px) scale(1.08); opacity: 1; }
       80%  { transform: translateY(-18px) scale(1); opacity: 1; }
       100% { transform: translateY(-26px) scale(0.9); opacity: 0; }
+    }
+    @keyframes goalWinnerFloat {
+      0%   { transform: translateY(0) scale(0.6); opacity: 0; }
+      25%  { transform: translateY(-14px) scale(1.15); opacity: 1; }
+      75%  { transform: translateY(-20px) scale(1.05); opacity: 1; }
+      100% { transform: translateY(-28px) scale(0.95); opacity: 0; }
+    }
+    .corner-pod.pod-finished {
+      border-color: #D97706 !important;
+      border-width: 3.5px !important;
+      border-style: solid !important;
+      box-shadow: 0 4px 16px rgba(217, 119, 6, 0.25) !important;
+    }
+    .corner-pod.pod-finished .btn-station-roll {
+      background: linear-gradient(135deg, #FEF3C7, #FDE68A) !important;
+      color: #92400E !important;
+      border: 1.5px solid #F59E0B !important;
+      font-weight: 900 !important;
+      opacity: 1 !important;
+      cursor: default !important;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
+      animation: none !important;
+    }
+    .corner-pod.winner-pod {
+      border-color: #F59E0B !important;
+      border-width: 4px !important;
+      animation: winnerPodPulse 2s infinite ease-in-out !important;
+    }
+    @keyframes winnerPodPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.4), 0 0 25px rgba(245, 158, 11, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.7), 0 0 40px rgba(245, 158, 11, 0.85);
+      }
     }
     
     /* =========================================================
@@ -3486,9 +3547,12 @@
           <button class="btn-close-modal" title="Close" aria-label="Close"><svg class="lucide-x" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <div class="victory-trophy-icon">👑</div>
-        <div id="victory-text" style="font-size: 1.2rem; font-weight: 900; color: #78350F; margin: 8px 0;"></div>
-        <div style="font-size: 0.88rem; color: #A16207;">All 4 pawns safely reached the Central Goal!</div>
-        <button class="btn-primary" onclick="window.location.reload()" style="margin-top: 14px; background: linear-gradient(135deg, #F59E0B, #D97706); font-size: 1.05rem; padding: 12px 24px;">🎉 Play Again</button>
+        <div id="victory-text" style="font-size: 1.28rem; font-weight: 900; color: #78350F; margin: 8px 0;"></div>
+        <div style="font-size: 0.92rem; font-weight: 700; color: #92400E;">All 4 pawns safely reached the Central Goal!</div>
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+          <button class="btn-primary" id="btn-victory-play-again" type="button" style="background: linear-gradient(135deg, #F59E0B, #D97706); font-size: 0.95rem; padding: 10px 18px;">🎉 Play Again</button>
+          <button class="btn-cancel-room btn-close-modal" type="button" style="margin-top: 0; padding: 10px 16px; font-size: 0.88rem;">👀 View Board</button>
+        </div>
       </div>
     </div>
 
@@ -3721,6 +3785,7 @@
         this.canRoll = true;
         this.mustMove = false;
         this.winner = null;
+        this.isGameOver = false;
         this.rankings = [];
         this.pawns = {};
         this.kills = {}; // Per-player kill counter for inner route entry rule
@@ -3803,7 +3868,7 @@
       }
       
       rollDice(customShells = null) {
-        if (!this.canRoll || this.winner) return null;
+        if (!this.canRoll || this.isGameOver) return null;
         const shells = customShells || [
           Math.random() < 0.5 ? 1 : 0,
           Math.random() < 0.5 ? 1 : 0,
@@ -3836,7 +3901,7 @@
       }
       
       movePawn(pawnId, predeterminedMove = null) {
-        if (!this.mustMove || this.currentRoll === null || this.winner) return null;
+        if (!this.mustMove || this.currentRoll === null || this.isGameOver) return null;
         const curPlayer = this.getCurrentPlayerId();
         const chosen = predeterminedMove || this.getValidMoves(curPlayer, this.currentRoll).find(m => m.pawnId === pawnId);
         if (!chosen) return null;
@@ -3854,18 +3919,40 @@
           extraTurn = true;
           bonusReason = 'Captured opponent pawn!';
         }
-        if (chosen.reachesGoal) {
-          extraTurn = true;
-          bonusReason = bonusReason ? bonusReason + ' & Reached Central Goal!' : '🎯 Reached Central Goal!';
-        }
-        if (this.currentRoll === 8) {
-          extraTurn = true;
-          bonusReason = bonusReason ? bonusReason + ' & Rolled 8!' : 'Rolled 8 (Ashta)!';
-        }
-        if (this.pawns[curPlayer].every(p => p.inGoal) && !this.rankings.includes(curPlayer)) {
+
+        // Count how many pawns of this player are in the goal now
+        const goalPawnsCount = this.pawns[curPlayer].filter(p => p.inGoal).length;
+        const justFinished = (goalPawnsCount === 4 && !this.rankings.includes(curPlayer));
+        
+        if (justFinished) {
           this.rankings.push(curPlayer);
-          if (this.rankings.length === this.playerOrder.length - 1 || this.playerOrder.length === 2) {
+          // STRICT RULE: If 4th pawn goes into the main house, the player's turn is done and NO bonus roll.
+          // Bonus roll is ONLY applicable for first 3 pawns of each player.
+          extraTurn = false;
+          bonusReason = null;
+          this.lastBonusReason = null;
+          this.canRoll = false;
+          this.mustMove = false;
+          this.currentRoll = null;
+
+          // Check if match is fully completed
+          const unfinishedPlayers = this.playerOrder.filter(pid => !this.rankings.includes(pid));
+          if (unfinishedPlayers.length <= 1) {
+            if (unfinishedPlayers.length === 1) {
+              this.rankings.push(unfinishedPlayers[0]);
+            }
             this.winner = this.rankings[0];
+            this.isGameOver = true;
+          }
+        } else {
+          // Bonus rolls ONLY applicable for first 3 pawns of each player
+          if (chosen.reachesGoal) {
+            extraTurn = true;
+            bonusReason = bonusReason ? bonusReason + ' & Reached Central Goal!' : '🎯 Reached Central Goal!';
+          }
+          if (this.currentRoll === 8) {
+            extraTurn = true;
+            bonusReason = bonusReason ? bonusReason + ' & Rolled 8!' : 'Rolled 8 (Ashta)!';
           }
         }
         
@@ -3876,19 +3963,23 @@
           waypoints: chosen.waypoints,
           killed: chosen.killedOpponent,
           reachedGoal: chosen.reachesGoal,
+          justFinished,
+          finishRank: justFinished ? this.rankings.indexOf(curPlayer) + 1 : null,
           extraTurn,
-          winner: this.winner
+          winner: this.winner,
+          isGameOver: this.isGameOver,
+          rankings: [...this.rankings]
         };
         
         this.currentRoll = null;
         this.mustMove = false;
         
-        if (this.winner) {
+        if (this.isGameOver) {
           this.canRoll = false;
           return result;
         }
         
-        if (extraTurn) {
+        if (extraTurn && !justFinished) {
           this.canRoll = true;
           this.lastBonusReason = bonusReason;
         } else {
@@ -3903,6 +3994,10 @@
         this.mustMove = false;
         this.canRoll = true;
         this.lastBonusReason = null;
+        if (this.isGameOver) {
+          this.canRoll = false;
+          return;
+        }
         let attempts = 0;
         do {
           this.currentTurnIndex = (this.currentTurnIndex + 1) % this.playerOrder.length;
@@ -4835,7 +4930,7 @@
 
       isMatchActive() {
         if (!this.game) return false;
-        if (this.game.winner) return false;
+        if (this.game.isGameOver) return false;
         if (this.dom.modalNewGame && this.dom.modalNewGame.classList.contains('first-landing')) return false;
         return !!this.matchInProgress;
       }
@@ -5093,6 +5188,14 @@
         }
 
         // Modal Closers
+        const btnVictoryPlayAgain = document.getElementById('btn-victory-play-again');
+        if (btnVictoryPlayAgain) {
+          btnVictoryPlayAgain.addEventListener('click', () => {
+            this.closeAllModals();
+            this.openLocalModal();
+          });
+        }
+
         document.querySelectorAll('.btn-close-modal, .btn-close-action').forEach(btn => {
           btn.addEventListener('click', () => {
             if (this.dom.modalNewGame) {
@@ -5628,7 +5731,7 @@
 
       resetInactivityTimer() {
         this.clearInactivityTimer();
-        if (!this.isOnline || (this.game && this.game.winner)) return;
+        if (!this.isOnline || (this.game && this.game.isGameOver)) return;
 
         // 5 minutes = 300,000 ms
         const INACTIVITY_MS = 5 * 60 * 1000;
@@ -5645,7 +5748,7 @@
       }
 
       triggerInactivityNotification() {
-        if (!this.isOnline || (this.game && this.game.winner)) return;
+        if (!this.isOnline || (this.game && this.game.isGameOver)) return;
         const curPlayer = this.game.getCurrentPlayerId();
         const isMyTurn = (curPlayer === this.onlinePlayerId);
         const colorNames = {
@@ -5771,6 +5874,7 @@
           currentRoll: this.game.currentRoll,
           rankings: [...this.game.rankings],
           winner: this.game.winner,
+          isGameOver: this.game.isGameOver,
           lastBonusReason: this.game.lastBonusReason
         };
         this.network.broadcast(payload);
@@ -5794,13 +5898,14 @@
         if (sync.currentRoll !== undefined) this.game.currentRoll = sync.currentRoll;
         if (sync.rankings) this.game.rankings = [...sync.rankings];
         if (sync.winner !== undefined) this.game.winner = sync.winner;
+        if (sync.isGameOver !== undefined) this.game.isGameOver = sync.isGameOver;
         if (sync.lastBonusReason !== undefined) this.game.lastBonusReason = sync.lastBonusReason;
         this.render();
         this.resetInactivityTimer();
       }
 
       triggerRoll(playerId = null) {
-        if (!this.game.canRoll || this.game.winner || this.isAnimating) return;
+        if (!this.game.canRoll || this.game.isGameOver || this.isAnimating) return;
         const curPlayer = this.game.getCurrentPlayerId();
         if (playerId && playerId !== curPlayer) return;
         if (this.game.playerTypes[curPlayer] !== 'human') return;
@@ -5880,7 +5985,7 @@
             
             // AUTO-MOVE LOGIC:
             // When only 1 valid move is available, auto-execute without waiting for click!
-            if (isHuman && result.validMoves && result.validMoves.length === 1 && !this.game.winner) {
+            if (isHuman && result.validMoves && result.validMoves.length === 1 && !this.game.isGameOver) {
               const onlyPawnId = result.validMoves[0].pawnId;
               this.dom.turnBanner.textContent = `⚡ Auto-advancing pawn ${onlyPawnId + 1}...`;
               setTimeout(() => {
@@ -5897,22 +6002,28 @@
       }
 
       triggerMove(pawnId) {
-        if (!this.game.mustMove || this.game.winner || this.isAnimating) return;
+        if (!this.game.mustMove || this.game.isGameOver || this.isAnimating) return;
         const curPlayer = this.game.getCurrentPlayerId();
         if (this.game.playerTypes[curPlayer] !== 'human') return;
         this.executeMove(pawnId);
       }
 
-      triggerGoalVisualEffect(playerId) {
+      triggerGoalVisualEffect(playerId, isFinalGoal = false, finishRank = 1) {
         const goalCell = document.getElementById('center-goal-cell');
         if (!goalCell) return;
         
         const ring = document.createElement('div');
-        ring.className = 'goal-burst-ring';
+        ring.className = isFinalGoal ? 'goal-burst-ring goal-burst-final' : 'goal-burst-ring';
         
+        const pConfig = PLAYER_CONFIGS[playerId] || { name: playerId };
         const text = document.createElement('div');
-        text.className = 'goal-floating-text';
-        text.innerHTML = `🎯 GOAL! + BONUS TURN!`;
+        text.className = isFinalGoal ? 'goal-floating-winner' : 'goal-floating-text';
+        if (isFinalGoal) {
+          const rankText = finishRank === 1 ? '1ST PLACE (WINNER! 🏆)' : (finishRank === 2 ? '2ND PLACE! 🥈' : '3RD PLACE! 🥉');
+          text.innerHTML = `👑 ${pConfig.name.toUpperCase()} FINISHED ${rankText}`;
+        } else {
+          text.innerHTML = `🎯 GOAL! + BONUS TURN!`;
+        }
         
         goalCell.appendChild(ring);
         goalCell.appendChild(text);
@@ -5920,7 +6031,7 @@
         setTimeout(() => {
           ring.remove();
           text.remove();
-        }, 1300);
+        }, isFinalGoal ? 2600 : 1300);
       }
 
       async executeMove(pawnId, fromRemote = false, remoteData = null) {
@@ -6014,17 +6125,51 @@
           this.isAnimating = false;
         }
         
-        if (res.reachedGoal) {
-          this.audio.playBonus();
-          this.triggerGoalVisualEffect(curPlayer);
+        if (res && res.reachedGoal) {
+          if (res.justFinished) {
+            this.audio.playVictory();
+            this.confetti.start(4000);
+            this.triggerGoalVisualEffect(curPlayer, true, res.finishRank);
+            const pConfig = PLAYER_CONFIGS[curPlayer] || { name: curPlayer };
+            const rankOrdinal = res.finishRank === 1 ? '1st Place (Winner! 🏆)' : (res.finishRank === 2 ? '2nd Place (🥈)' : '3rd Place (🥉)');
+            if (!this.game.isGameOver) {
+              this.showInactivityToast(`🎉 <b>${pConfig.name}</b> put all 4 pawns in the Goal and finished <b>${rankOrdinal}</b>! Match continues for remaining players!`, 8000);
+            }
+          } else {
+            this.audio.playBonus();
+            this.triggerGoalVisualEffect(curPlayer, false);
+          }
         }
         
-        if (res.winner) {
+        if (this.game.isGameOver) {
+          const winnerId = this.game.rankings[0];
+          const winnerConfig = PLAYER_CONFIGS[winnerId] || { name: winnerId, color: '#2E6B4F' };
           this.matchInProgress = false;
           this.audio.playVictory();
-          this.confetti.start(7000);
-          this.dom.victoryText.innerHTML = `👑 <b>${PLAYER_CONFIGS[res.winner].name}</b> is the Champion!`;
-          this.dom.modalVictory.classList.remove('hidden');
+          this.confetti.start(8000);
+          if (this.dom.victoryText) {
+            const medals = ['🥇 1st Place', '🥈 2nd Place', '🥉 3rd Place', '4th Place'];
+            const podiumRows = this.game.rankings.map((pid, idx) => {
+              const cfg = PLAYER_CONFIGS[pid] || { name: pid, color: '#4A3A2C' };
+              const medal = medals[idx] || `${idx + 1}th Place`;
+              return `
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; margin-bottom: 6px; background: rgba(255, 255, 255, 0.85); border-radius: 10px; border-left: 5px solid ${cfg.color}; font-size: 0.95rem; font-weight: 800;">
+                  <span>${medal}</span>
+                  <span style="color: ${cfg.color}; font-size: 1.05rem;">${cfg.name}</span>
+                </div>
+              `;
+            }).join('');
+
+            this.dom.victoryText.innerHTML = `
+              <div style="font-size: 1.35rem; color: #78350F; margin-bottom: 12px;">👑 <b style="color: ${winnerConfig.color};">${winnerConfig.name}</b> is the Champion!</div>
+              <div style="text-align: left; margin: 12px 0 6px 0;">${podiumRows}</div>
+            `;
+          }
+          setTimeout(() => {
+            if (this.dom.modalVictory) {
+              this.dom.modalVictory.classList.remove('hidden');
+            }
+          }, 800);
         }
         
         this.render();
@@ -6076,8 +6221,14 @@
 
       checkAITurn() {
         if (this.isOnline) return; // In online room games, NO BOTS!
-        if (this.game.winner || this.isAnimating) return;
+        if (this.game.isGameOver || this.isAnimating) return;
         const curPlayer = this.game.getCurrentPlayerId();
+        if (this.game.rankings.includes(curPlayer)) {
+          this.game.passTurn();
+          this.render();
+          this.checkAITurn();
+          return;
+        }
         if (this.game.playerTypes[curPlayer] === 'bot') {
           setTimeout(() => {
             if (this.game.canRoll && !this.isAnimating) this.executeRoll();
@@ -6288,7 +6439,19 @@
 
           // Roll Button status
           if (rollBtn) {
-            if (isCurrentTurn && this.game.canRoll && pType === 'human' && !this.isAnimating) {
+            const isFinished = this.game.rankings && this.game.rankings.includes(pid);
+            const rankLabels = ['🏆 1st (Winner!)', '🥈 2nd Place', '🥉 3rd Place', '4th Place'];
+            if (this.game.isGameOver) {
+              rollBtn.disabled = true;
+              rollBtn.classList.remove('pulse-active');
+              const rankIdx = this.game.rankings ? this.game.rankings.indexOf(pid) : -1;
+              rollBtn.textContent = rankIdx >= 0 ? rankLabels[rankIdx] : 'Game Over';
+            } else if (isFinished) {
+              rollBtn.disabled = true;
+              rollBtn.classList.remove('pulse-active');
+              const rankIdx = this.game.rankings.indexOf(pid);
+              rollBtn.textContent = rankLabels[rankIdx] || 'Finished';
+            } else if (isCurrentTurn && this.game.canRoll && pType === 'human' && !this.isAnimating) {
               rollBtn.disabled = false;
               rollBtn.classList.add('pulse-active');
               rollBtn.textContent = this.game.lastBonusReason ? 'Bonus Roll!' : 'Roll Kavadi';
@@ -6306,8 +6469,34 @@
           }
         });
         
+        // Update Winner Pod and Finished highlight on player cards
+        this.game.playerOrder.forEach(pid => {
+          const stationEl = this.dom.stations ? this.dom.stations[pid] : document.getElementById(`station-${pid}`);
+          if (stationEl) {
+            const isFinished = this.game.rankings && this.game.rankings.includes(pid);
+            if (isFinished) {
+              stationEl.classList.add('pod-finished');
+              if (this.game.rankings[0] === pid) {
+                stationEl.classList.add('winner-pod');
+              }
+            } else {
+              stationEl.classList.remove('pod-finished', 'winner-pod');
+            }
+          }
+        });
+
         // Turn Guide Banner
-        if (this.isOnline) {
+        if (this.game.isGameOver) {
+          const winId = (this.game.rankings && this.game.rankings[0]) || this.game.winner;
+          const winConfig = PLAYER_CONFIGS[winId] || { name: winId, color: '#2E6B4F' };
+          this.dom.turnBanner.innerHTML = `👑 <b>Victory! ${winConfig.name}</b> won 1st Place! Match completed.`;
+          this.dom.turnBanner.style.background = 'linear-gradient(135deg, #FEF3C7, #FDE68A)';
+          this.dom.turnBanner.style.color = '#78350F';
+          this.dom.turnBanner.style.borderColor = '#F59E0B';
+        } else if (this.isOnline) {
+          this.dom.turnBanner.style.background = '';
+          this.dom.turnBanner.style.color = '';
+          this.dom.turnBanner.style.borderColor = '';
           const isMyTurn = (curPlayer === this.onlinePlayerId);
           const colorToName = {
             green: 'Player 1 (Dakshin / Green)',
@@ -6317,30 +6506,46 @@
           };
           const pLabel = colorToName[curPlayer] || curConfig.name;
 
+          let rankPrefix = '';
+          if (this.game.rankings && this.game.rankings.length > 0) {
+            const firstId = this.game.rankings[0];
+            const firstName = (PLAYER_CONFIGS[firstId] && PLAYER_CONFIGS[firstId].name) || firstId;
+            rankPrefix = `🏆 <b>${firstName}</b> finished 1st! `;
+          }
+
           if (this.game.canRoll) {
             if (isMyTurn) {
-              this.dom.turnBanner.innerHTML = this.game.lastBonusReason
+              this.dom.turnBanner.innerHTML = rankPrefix + (this.game.lastBonusReason
                 ? `🎉 <b>Bonus Roll!</b> (${this.game.lastBonusReason}) Tap Roll Kavadi!`
-                : `🎲 <b>Your turn (${pLabel})!</b> Tap Roll Kavadi to roll shells`;
+                : `🎲 <b>Your turn (${pLabel})!</b> Tap Roll Kavadi to roll shells`);
             } else {
-              this.dom.turnBanner.innerHTML = `⏳ <b>Match In Progress:</b> Waiting for <b>${pLabel}</b> to roll shells...`;
+              this.dom.turnBanner.innerHTML = rankPrefix + `⏳ <b>Match In Progress:</b> Waiting for <b>${pLabel}</b> to roll shells...`;
             }
           } else if (this.game.mustMove) {
             if (isMyTurn) {
-              this.dom.turnBanner.innerHTML = `♟️ You rolled <b>${this.game.currentRoll}</b>! Click glowing pawn on board or press 1-4`;
+              this.dom.turnBanner.innerHTML = rankPrefix + `♟️ You rolled <b>${this.game.currentRoll}</b>! Click glowing pawn on board or press 1-4`;
             } else {
-              this.dom.turnBanner.innerHTML = `⏳ <b>${pLabel}</b> rolled <b>${this.game.currentRoll}</b>. Waiting for opponent to move...`;
+              this.dom.turnBanner.innerHTML = rankPrefix + `⏳ <b>${pLabel}</b> rolled <b>${this.game.currentRoll}</b>. Waiting for opponent to move...`;
             }
           }
         } else {
+          this.dom.turnBanner.style.background = '';
+          this.dom.turnBanner.style.color = '';
+          this.dom.turnBanner.style.borderColor = '';
+          let rankPrefix = '';
+          if (this.game.rankings && this.game.rankings.length > 0) {
+            const firstId = this.game.rankings[0];
+            const firstName = (PLAYER_CONFIGS[firstId] && PLAYER_CONFIGS[firstId].name) || firstId;
+            rankPrefix = `🏆 <b>${firstName}</b> finished 1st! `;
+          }
           if (this.game.canRoll) {
             if (this.game.lastBonusReason) {
-              this.dom.turnBanner.innerHTML = `🎉 <b>${curConfig.name}</b>: ${this.game.lastBonusReason} Roll shells!`;
+              this.dom.turnBanner.innerHTML = rankPrefix + `🎉 <b>${curConfig.name}</b>: ${this.game.lastBonusReason} Roll shells!`;
             } else {
-              this.dom.turnBanner.innerHTML = `🎲 <b>${curConfig.name}</b>'s turn to roll Kavadi (${isHuman ? 'Space or click Roll' : 'Bot thinking...'})`;
+              this.dom.turnBanner.innerHTML = rankPrefix + `🎲 <b>${curConfig.name}</b>'s turn to roll Kavadi (${isHuman ? 'Space or click Roll' : 'Bot thinking...'})`;
             }
           } else if (this.game.mustMove) {
-            this.dom.turnBanner.innerHTML = `♟️ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>! ${isHuman ? 'Click glowing pawn on board or press 1-4' : 'Selecting pawn...'}`;
+            this.dom.turnBanner.innerHTML = rankPrefix + `♟️ <b>${curConfig.name}</b> rolled <b>${this.game.currentRoll}</b>! ${isHuman ? 'Click glowing pawn on board or press 1-4' : 'Selecting pawn...'}`;
           }
         }
       }

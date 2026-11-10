@@ -2557,9 +2557,10 @@
       background: #C8A261;
       color: #2D1A0E;
     }
-    @keyframes rollPulse {
+    /* Player-Specific Active Roll CTA Button Animations & Theming (Desktop & Mobile) */
+    @keyframes rollPulseGreen {
       0%, 100% {
-        box-shadow: 0 0 0 0 rgba(46, 107, 79, 0.7);
+        box-shadow: 0 0 0 0 rgba(46, 107, 79, 0.75);
         transform: scale(1);
       }
       50% {
@@ -2567,11 +2568,83 @@
         transform: scale(1.04);
       }
     }
-    .btn-station-roll.pulse-active {
-      animation: rollPulse 1.4s infinite ease-in-out;
-      background: linear-gradient(135deg, #2E6B4F, #1E4633) !important;
+    @keyframes rollPulseRed {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(168, 62, 45, 0.75);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(168, 62, 45, 0);
+        transform: scale(1.04);
+      }
+    }
+    @keyframes rollPulseYellow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(201, 139, 44, 0.75);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(201, 139, 44, 0);
+        transform: scale(1.04);
+      }
+    }
+    @keyframes rollPulseBlue {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(43, 91, 114, 0.75);
+        transform: scale(1);
+      }
+      50% {
+        box-shadow: 0 0 0 8px rgba(43, 91, 114, 0);
+        transform: scale(1.04);
+      }
+    }
+
+    /* Player 1: Dakshin (South - Green) */
+    #btn-roll-green.pulse-active,
+    #station-green.active-turn .btn-station-roll:not(:disabled) {
+      animation: rollPulseGreen 1.4s infinite ease-in-out;
+      background: linear-gradient(135deg, var(--p-south), #1A4230) !important;
       border-color: #52B788 !important;
       color: #FFFFFF !important;
+    }
+    #btn-roll-green:hover:not(:disabled) {
+      background: #245740 !important;
+    }
+
+    /* Player 2: Uttar (North - Red) */
+    #btn-roll-red.pulse-active,
+    #station-red.active-turn .btn-station-roll:not(:disabled) {
+      animation: rollPulseRed 1.4s infinite ease-in-out;
+      background: linear-gradient(135deg, var(--p-north), #73271A) !important;
+      border-color: #E06D53 !important;
+      color: #FFFFFF !important;
+    }
+    #btn-roll-red:hover:not(:disabled) {
+      background: #8C3224 !important;
+    }
+
+    /* Player 3: Purva (East - Yellow) */
+    #btn-roll-yellow.pulse-active,
+    #station-yellow.active-turn .btn-station-roll:not(:disabled) {
+      animation: rollPulseYellow 1.4s infinite ease-in-out;
+      background: linear-gradient(135deg, var(--p-east), #8F5F17) !important;
+      border-color: #F3BF5E !important;
+      color: #FFFFFF !important;
+    }
+    #btn-roll-yellow:hover:not(:disabled) {
+      background: #A87220 !important;
+    }
+
+    /* Player 4: Pashchim (West - Blue) */
+    #btn-roll-blue.pulse-active,
+    #station-blue.active-turn .btn-station-roll:not(:disabled) {
+      animation: rollPulseBlue 1.4s infinite ease-in-out;
+      background: linear-gradient(135deg, var(--p-west), #1A3B4A) !important;
+      border-color: #5696B5 !important;
+      color: #FFFFFF !important;
+    }
+    #btn-roll-blue:hover:not(:disabled) {
+      background: #22495C !important;
     }
     .lobby-slots-container {
       background: #FFFFFF;
